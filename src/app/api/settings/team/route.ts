@@ -72,7 +72,7 @@ export const POST = withAuth(async (session, req: Request) => {
   await db
     .insert(schema.member)
     .values({
-      id: newId("organization"),
+      id: newId("member"),
       organizationId: session.organizationId,
       userId: newUserId,
       role: "member",

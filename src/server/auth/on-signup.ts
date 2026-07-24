@@ -37,7 +37,7 @@ export async function onUserCreated(userId: string, userName: string) {
       slug: "principal",
     });
     await tx.insert(schema.member).values({
-      id: newId("organization"),
+      id: newId("member"),
       organizationId: orgId,
       userId,
       role: "owner",
