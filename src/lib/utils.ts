@@ -35,6 +35,7 @@ export function avatarColor(seed: string): string {
   return AVATAR_COLORS[hash % AVATAR_COLORS.length] ?? AVATAR_COLORS[0];
 }
 
-export function formatPhone(phone: string): string {
-  return `+${phone}`;
+export function formatPhone(phone: string | null | undefined): string {
+  // 003: contactos BSUID pueden no tener teléfono.
+  return phone ? `+${phone}` : "Sin teléfono";
 }

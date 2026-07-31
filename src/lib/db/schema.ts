@@ -111,7 +111,15 @@ export const contact = pgTable(
     organizationId: text("organization_id")
       .notNull()
       .references(() => organization.id, { onDelete: "cascade" }),
-    phone: text("phone").notNull(),
+    /**
+     * Llave de resolución WhatsApp (003): teléfono normalizado (521→52) o
+     * `bsuid:<id>` cuando Meta no manda wa_id. Estable de por vida.
+     */
+    waIdentity: text("wa_identity").notNull(),
+    /** Teléfono como ATRIBUTO opcional (003): falta en contactos BSUID. */
+    phone: text("phone"),
+    /** Business-Scoped User ID si se conoce (003). */
+    waUserId: text("wa_user_id"),
     name: text("name").notNull(),
     notes: text("notes"),
     archivedAt: timestamp("archived_at"),
@@ -119,7 +127,8 @@ export const contact = pgTable(
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
   (t) => [
-    uniqueIndex("contact_org_phone_uq").on(t.organizationId, t.phone),
+    uniqueIndex("contact_org_wa_identity_uq").on(t.organizationId, t.waIdentity),
+    index("contact_org_wa_user_id_idx").on(t.organizationId, t.waUserId),
     index("contact_org_name_idx").on(t.organizationId, t.name),
   ]
 );

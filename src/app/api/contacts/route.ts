@@ -4,6 +4,7 @@ import { apiError, parseBody, withAuth } from "@/lib/api";
 import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
 import { scoped } from "@/lib/db/tenant";
+import { normalizeMx } from "@/lib/meta/client";
 import { serializeContact } from "@/server/contacts";
 
 export const dynamic = "force-dynamic";
@@ -52,17 +53,20 @@ export const POST = withAuth(async (session, req: Request) => {
   if (!body.ok) return body.response;
 
   const db = getDb();
+  // 003: la identidad WhatsApp se deriva del teléfono normalizado.
+  const phone = normalizeMx(body.data.phone);
   const inserted = await db
     .insert(schema.contact)
     .values({
       id: newId("contact"),
       organizationId: session.organizationId,
       name: body.data.name,
-      phone: body.data.phone,
+      phone,
+      waIdentity: phone,
       notes: body.data.notes ?? null,
     })
     .onConflictDoNothing({
-      target: [schema.contact.organizationId, schema.contact.phone],
+      target: [schema.contact.organizationId, schema.contact.waIdentity],
     })
     .returning();
   if (!inserted[0]) {

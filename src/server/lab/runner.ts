@@ -243,11 +243,12 @@ async function upsertTestContact(
       id: newId("contact"),
       organizationId,
       phone: persona.phone,
+      waIdentity: persona.phone,
       name: persona.contactName,
       archivedAt: new Date(),
     })
     .onConflictDoNothing({
-      target: [schema.contact.organizationId, schema.contact.phone],
+      target: [schema.contact.organizationId, schema.contact.waIdentity],
     })
     .returning();
   if (inserted[0]) return inserted[0].id;

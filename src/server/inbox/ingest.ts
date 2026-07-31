@@ -1,9 +1,15 @@
 import { and, eq, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
+import { normalizeMx } from "@/lib/meta/client";
 import { publish } from "@/server/events/bus";
 import { getCredentialsByPhoneNumberId } from "@/server/whatsapp/credentials";
 import type { WebhookValue } from "@/server/inbox/webhook";
+import {
+  getOrCreateContactByIdentity,
+  resolveIdentity,
+  type ResolvedIdentity,
+} from "@/server/inbox/identity";
 import { applyStatusUpdate } from "@/server/inbox/status";
 import { onLeadActivity } from "@/server/inbox/lead-activity";
 import { maybeRunAgentTurn } from "@/server/ai/trigger";
@@ -20,48 +26,23 @@ const SUPPORTED_TYPES = new Set([
   "contacts",
 ]);
 
+/**
+ * Alta/resolución de contacto por teléfono (alta manual / seeds). La ingesta
+ * del webhook usa `getOrCreateContactByIdentity` (003) — este helper deriva la
+ * identidad del teléfono normalizado y delega ahí.
+ */
 export async function getOrCreateContact(
   organizationId: string,
   phone: string,
   name?: string | null
 ) {
-  const db = getDb();
-  const inserted = await db
-    .insert(schema.contact)
-    .values({
-      id: newId("contact"),
-      organizationId,
-      phone,
-      name: name?.trim() || phone,
-    })
-    .onConflictDoNothing({
-      target: [schema.contact.organizationId, schema.contact.phone],
-    })
-    .returning();
-  if (inserted[0]) return { contact: inserted[0], isNew: true };
-
-  const rows = await db
-    .select()
-    .from(schema.contact)
-    .where(
-      and(
-        eq(schema.contact.organizationId, organizationId),
-        eq(schema.contact.phone, phone)
-      )
-    )
-    .limit(1);
-  const existing = rows[0];
-  if (!existing) throw new Error("contacto no encontrado tras upsert");
-
-  // Reactivar si estaba archivado (el nombre editado por el operador se respeta).
-  if (existing.archivedAt) {
-    await db
-      .update(schema.contact)
-      .set({ archivedAt: null, updatedAt: new Date() })
-      .where(eq(schema.contact.id, existing.id));
-    existing.archivedAt = null;
-  }
-  return { contact: existing, isNew: false };
+  const normalized = normalizeMx(phone);
+  return getOrCreateContactByIdentity(organizationId, {
+    identity: normalized,
+    phone: normalized,
+    waUserId: null,
+    profileName: name ?? null,
+  });
 }
 
 export async function getOrCreateConversation(
@@ -119,13 +100,18 @@ export async function processMessagesValue(value: WebhookValue): Promise<void> {
 
   for (const msg of value.messages ?? []) {
     if (!SUPPORTED_TYPES.has(msg.type)) continue; // reacciones, etc.: ignorar
-    const profileName = value.contacts?.find(
-      (c) => c.wa_id === msg.from
-    )?.profile?.name;
+    const resolved = resolveIdentity(msg, value.contacts);
+    if (!resolved) {
+      // Mensaje sin NINGUNA identidad utilizable (ni teléfono ni BSUID):
+      // registrar y descartar — jamás reventar el webhook (003).
+      console.warn(
+        `[webhook] mensaje ${msg.id} sin identidad utilizable (sin from ni from_user_id): descartado`
+      );
+      continue;
+    }
     await ingestInboundMessage({
       organizationId,
-      from: msg.from,
-      profileName: profileName ?? null,
+      identity: resolved,
       waMessageId: msg.id,
       type: msg.type,
       text: msg.text?.body ?? null,
@@ -136,8 +122,7 @@ export async function processMessagesValue(value: WebhookValue): Promise<void> {
 
 export async function ingestInboundMessage(input: {
   organizationId: string;
-  from: string;
-  profileName: string | null;
+  identity: ResolvedIdentity;
   waMessageId: string;
   type: string;
   text: string | null;
@@ -146,10 +131,9 @@ export async function ingestInboundMessage(input: {
   const db = getDb();
   const { organizationId } = input;
 
-  const { contact } = await getOrCreateContact(
+  const { contact } = await getOrCreateContactByIdentity(
     organizationId,
-    input.from,
-    input.profileName
+    input.identity
   );
   const conversation = await getOrCreateConversation(
     organizationId,

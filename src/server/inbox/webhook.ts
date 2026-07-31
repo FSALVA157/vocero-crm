@@ -40,7 +40,10 @@ export function isValidSignature(
 /* ---------- Tipos del payload de Meta (subconjunto soportado) ---------- */
 
 export type WebhookMessage = {
-  from: string;
+  /** Teléfono del remitente. OPCIONAL desde la migración de Meta a BSUID (003). */
+  from?: string;
+  /** Business-Scoped User ID del remitente cuando no hay teléfono (003). */
+  from_user_id?: string;
   id: string;
   timestamp: string;
   type: string;
@@ -58,7 +61,7 @@ export type WebhookStatus = {
 export type WebhookValue = {
   messaging_product?: string;
   metadata?: { display_phone_number?: string; phone_number_id?: string };
-  contacts?: { profile?: { name?: string }; wa_id?: string }[];
+  contacts?: { profile?: { name?: string }; wa_id?: string; user_id?: string }[];
   messages?: WebhookMessage[];
   statuses?: WebhookStatus[];
   // message_template_status_update
