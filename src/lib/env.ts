@@ -29,6 +29,9 @@ const envSchema = z.object({
   ALLOW_SIGNUP: z.string().optional(),
   AGENT_COALESCE_MS: z.coerce.number().int().min(0).default(6000),
   WA_MOCK_ENABLED: z.string().optional(),
+  // API key de un cerebro externo que conduzca la conversación por /api/bot/*.
+  // Sin ella, toda esa superficie responde 401.
+  BOT_API_KEY: z.string().optional(),
   NODE_ENV: z.string().default("development"),
 });
 
