@@ -45,8 +45,10 @@ export function ContactPanel({
   const contactId = conversation.contact.id;
 
   const agentReady = aiConfigured && agentEnabled;
-  const aiActive =
-    agentReady && conversation.aiEnabled && !conversation.handoffAt;
+  // El control es la FUENTE DE VERDAD de la conversación: el agente in-process
+  // y cualquier cerebro externo conectado por /api/bot/* respetan este flag,
+  // así que el toggle opera siempre — `agentReady` solo matiza el texto.
+  const aiActive = conversation.aiEnabled && !conversation.handoffAt;
 
   // Carga inicial (incluye notas): se re-ejecuta al cambiar de contacto.
   const refetch = useCallback(async () => {
@@ -163,7 +165,6 @@ export function ContactPanel({
                 size="sm"
                 variant="outline"
                 className="mt-2 w-full"
-                disabled={!agentReady}
                 onClick={() => void onPatchConversation({ reactivate: true })}
               >
                 Reactivar IA
@@ -176,30 +177,27 @@ export function ContactPanel({
               <div className="min-w-0">
                 <p className="text-[13px] font-medium">IA en esta conversación</p>
                 <p className="text-[11px] text-text-3">
-                  {!agentReady
-                    ? "Agente sin activar"
-                    : conversation.handoffAt
-                      ? "En pausa · atención humana"
-                      : conversation.aiEnabled
+                  {conversation.handoffAt
+                    ? "En pausa · atención humana"
+                    : !conversation.aiEnabled
+                      ? "En pausa"
+                      : agentReady
                         ? "Respondiendo"
-                        : "En pausa"}
+                        : "Activada"}
                 </p>
               </div>
               <button
                 role="switch"
                 aria-checked={aiActive}
                 aria-label="IA en esta conversación"
-                disabled={!agentReady}
                 onClick={() => {
-                  if (!agentReady) return;
                   void onPatchConversation({
                     aiEnabled: !conversation.aiEnabled,
                   });
                 }}
                 className={cn(
                   "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full px-0.5 transition-colors",
-                  aiActive ? "bg-brand" : "bg-border-strong",
-                  !agentReady && "cursor-not-allowed opacity-60"
+                  aiActive ? "bg-brand" : "bg-border-strong"
                 )}
               >
                 <span
@@ -219,8 +217,8 @@ export function ContactPanel({
                 />
                 <p className="text-[11px] leading-relaxed text-[#8a6d3b]">
                   {aiConfigured
-                    ? "La IA todavía no responde por su cuenta. Configura lo básico del agente y enciéndelo."
-                    : "Falta la clave de IA de la instancia (OPENROUTER_API_TOKEN) para que el agente pueda responder."}
+                    ? "El agente de Vocero no responde por su cuenta. Configura lo básico y enciéndelo (o conecta tu propio bot por la API)."
+                    : "Falta la clave de IA de la instancia (OPENROUTER_API_TOKEN) para que el agente responda, o conecta tu propio bot por la API."}
                   {aiConfigured && (
                     <Link
                       href="/agent"
