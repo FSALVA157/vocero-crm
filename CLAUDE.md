@@ -31,11 +31,25 @@ externas: el trabajo en segundo plano (agente, Laboratorio) es in-process.
 | El canal WhatsApp (Graph API) | `src/lib/meta/` (cliente único) + `src/server/whatsapp/` |
 | Campos/tablas | `src/lib/db/schema.ts` → `pnpm db:generate` → migración nueva en `drizzle/` |
 | La ingesta/envío de mensajes | `src/server/inbox/` (ingest idempotente, send con guard de sandbox, ventana 24h) |
+| Cómo se identifica a un contacto | `src/server/inbox/identity.ts` (teléfono normalizado o `bsuid:<id>`) |
+| Conectar TU propio bot en vez del agente | `src/app/api/bot/*` + `src/server/bot/auth.ts` (X-API-Key) |
 | UI | `src/components/` + `src/app/(app)/` |
 
 Los mocks del entorno de pruebas viven en `src/app/api/dev/` (wa-mock +
 ai-mock) tras un gate único (`src/lib/dev-guard.ts`): 404 incondicional en
 producción.
+
+**Identidad de contacto**: Meta está migrando de teléfono a Business-Scoped
+User IDs, así que `from` puede no venir. La llave estable es
+`contact.wa_identity` (teléfono normalizado 521→52, o `bsuid:<id>`); `phone` es
+un atributo OPCIONAL. Nunca asumas que un contacto tiene teléfono.
+
+**Cerebro externo**: `/api/bot/*` (autenticada por `BOT_API_KEY`) deja que un
+microservicio propio conduzca la conversación sin que el token de WhatsApp
+salga del CRM: marcar leído + "escribiendo…", descargar adjuntos y reiniciar la
+conversación de pruebas. Respeta `conversation.ai_enabled`/`handoff_at` igual
+que el agente in-process. Sin la key, esa superficie responde 401 y el CRM
+funciona igual.
 
 ## Reglas de la constitución (no negociables)
 
@@ -95,7 +109,11 @@ Gate técnico:
 pnpm typecheck && pnpm lint && pnpm build && pnpm test
 ```
 
-Guiones E2E por historia en `tests/e2e/*.md`.
+Guiones E2E por historia en `tests/e2e/*.md`. Parte de ellos ya están
+automatizados: con la app viva y los mocks encendidos, `pnpm test:e2e`
+(`scripts/e2e-selftest.mjs`) los conduce contra la app real y sale distinto de
+cero si algo falla. Al agregar una historia, extiende el arnés en vez de dejar
+solo el `.md`.
 
 ## Modo Objetivo — Loop SDD
 
