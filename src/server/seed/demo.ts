@@ -188,6 +188,7 @@ export async function seedDemo(
       id: contactId,
       organizationId,
       phone: demo.phone,
+      waIdentity: demo.phone,
       name: demo.name,
       notes: demo.notes ?? null,
     });

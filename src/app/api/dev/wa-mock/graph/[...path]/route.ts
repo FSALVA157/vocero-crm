@@ -60,6 +60,17 @@ export async function GET(req: Request, ctx: Params) {
     });
   }
 
+  // GET {mediaId} (ids "media...") → metadata de adjunto (media proxy del bot)
+  if (path.length === 1 && path[0]!.startsWith("media")) {
+    const origin = new URL(req.url).origin;
+    return Response.json({
+      id: path[0],
+      mime_type: path[0]!.includes("pdf") ? "application/pdf" : "image/jpeg",
+      file_size: 13,
+      url: `${origin}/api/dev/wa-mock/media-file/${path[0]}`,
+    });
+  }
+
   // GET {phoneNumberId}?fields=... → validación del wizard
   if (path.length === 1) {
     return Response.json({
@@ -80,6 +91,12 @@ export async function POST(req: Request, ctx: Params) {
   if (token.endsWith("-invalid")) return invalidTokenResponse();
 
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+
+  // POST {phoneNumberId}/messages con status:"read" → typing/leído:
+  // NO es un mensaje saliente — no contamina el outbox.
+  if (path.length === 2 && path[1] === "messages" && body.status === "read") {
+    return Response.json({ success: true });
+  }
 
   // POST {phoneNumberId}/messages → registra en el outbox
   if (path.length === 2 && path[1] === "messages") {

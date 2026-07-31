@@ -9,15 +9,21 @@ import {
 
 export const dynamic = "force-dynamic";
 
-const schema = z.object({
-  phoneNumberId: z.string().min(1),
-  from: z.string().min(5),
-  name: z.string().optional(),
-  type: z.string().optional(),
-  text: z.string().optional(),
-  waMessageId: z.string().optional(),
-  timestamp: z.number().optional(),
-});
+const schema = z
+  .object({
+    phoneNumberId: z.string().min(1),
+    /** Teléfono; omítelo (con fromUserId) para simular un inbound BSUID (003). */
+    from: z.string().min(5).optional(),
+    fromUserId: z.string().min(3).optional(),
+    name: z.string().optional(),
+    type: z.string().optional(),
+    text: z.string().optional(),
+    waMessageId: z.string().optional(),
+    timestamp: z.number().optional(),
+  })
+  .refine((v) => v.from || v.fromUserId, {
+    message: "Se requiere from o fromUserId",
+  });
 
 export async function POST(req: Request) {
   const guard = mockGuard();

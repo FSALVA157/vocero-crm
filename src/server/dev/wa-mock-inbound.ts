@@ -29,7 +29,10 @@ export async function deliverToWebhook(payload: unknown): Promise<Response> {
 export function buildInboundPayload(input: {
   wabaId: string;
   phoneNumberId: string;
-  from: string;
+  /** Teléfono del remitente. Omite y usa `fromUserId` para simular BSUID (003). */
+  from?: string;
+  /** BSUID del remitente — puede venir solo o junto a `from`. */
+  fromUserId?: string;
   name?: string;
   type?: string;
   text?: string;
@@ -38,12 +41,19 @@ export function buildInboundPayload(input: {
 }) {
   const type = input.type ?? "text";
   const message: Record<string, unknown> = {
-    from: input.from,
     id: input.waMessageId ?? `wamid.mock.in.${nextN()}`,
     timestamp: String(input.timestamp ?? Math.floor(Date.now() / 1000)),
     type,
   };
+  if (input.from) message.from = input.from;
+  if (input.fromUserId) message.from_user_id = input.fromUserId;
   if (type === "text") message.text = { body: input.text ?? "hola" };
+
+  const contactEntry: Record<string, unknown> = {
+    profile: { name: input.name ?? "Cliente" },
+  };
+  if (input.from) contactEntry.wa_id = input.from;
+  if (input.fromUserId) contactEntry.user_id = input.fromUserId;
 
   return {
     object: "whatsapp_business_account",
@@ -59,12 +69,7 @@ export function buildInboundPayload(input: {
                 display_phone_number: "5215500000000",
                 phone_number_id: input.phoneNumberId,
               },
-              contacts: [
-                {
-                  profile: { name: input.name ?? "Cliente" },
-                  wa_id: input.from,
-                },
-              ],
+              contacts: [contactEntry],
               messages: [message],
             },
           },

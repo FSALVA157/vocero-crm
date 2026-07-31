@@ -86,9 +86,21 @@ export async function sendText(input: {
     );
   }
 
+  // 003: el destinatario es el teléfono normalizado o, si el contacto llegó
+  // por BSUID sin teléfono, su Business-Scoped User ID.
+  const recipient = row.contact.phone
+    ? normalizeRecipient(row.contact.phone)
+    : row.contact.waUserId;
+  if (!recipient) {
+    throw new SendError(
+      "meta_error",
+      "El contacto no tiene teléfono ni identidad de WhatsApp utilizable"
+    );
+  }
+
   const waMessageId = await callGraphSend(credentials, {
     messaging_product: "whatsapp",
-    to: normalizeRecipient(row.contact.phone),
+    to: recipient,
     type: "text",
     text: { body: input.text },
   });

@@ -336,9 +336,20 @@ export async function sendTemplate(input: {
     throw new TemplateError("reconnect_required", "Reconecta el número");
   }
 
+  // 003: destinatario = teléfono normalizado o BSUID.
+  const templateRecipient = row.contact.phone
+    ? normalizeRecipient(row.contact.phone)
+    : row.contact.waUserId;
+  if (!templateRecipient) {
+    throw new TemplateError(
+      "meta_error",
+      "El contacto no tiene teléfono ni identidad de WhatsApp utilizable"
+    );
+  }
+
   const waMessageId = await callGraphSend(creds, {
     messaging_product: "whatsapp",
-    to: normalizeRecipient(row.contact.phone),
+    to: templateRecipient,
     type: "template",
     template: {
       name: template.name,

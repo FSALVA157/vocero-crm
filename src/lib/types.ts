@@ -2,7 +2,7 @@
 
 export type ConversationDto = {
   id: string;
-  contact: { id: string; name: string; phone: string };
+  contact: { id: string; name: string; phone: string | null };
   stageName: string | null;
   aiEnabled: boolean;
   handoffAt: string | null;
@@ -46,7 +46,8 @@ export type StageDto = {
 export type ContactDto = {
   id: string;
   name: string;
-  phone: string;
+  /** null en contactos que llegaron solo con BSUID (003). */
+  phone: string | null;
   notes: string | null;
   archivedAt: string | null;
 };
