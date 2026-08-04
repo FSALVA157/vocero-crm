@@ -49,8 +49,8 @@ los pasos visuales de Playwright.
 ## En vivo (producción, reglas Evolution)
 
 1. Responder desde la app de WhatsApp Business del teléfono a la conversación
-   de la línea de pruebas → aparece como manual en el CRM y la IA se pausa.
-2. Reactivar la IA desde el CRM → Nea vuelve a contestar.
+   de la línea de pruebas → aparece como manual en el CRM y la IA se pausa (probado con una instancia real en coexistence).
+2. Reactivar la IA desde el CRM → el agente vuelve a contestar.
 3. Enviar desde el CRM a la línea de pruebas: imagen con caption, un PDF y
    una ubicación (pausas ≥8 s; verificar recepción en el teléfono).
 4. Desde la línea de pruebas enviar foto y nota de voz → previews en el CRM.

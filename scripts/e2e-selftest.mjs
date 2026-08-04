@@ -298,7 +298,6 @@ async function main() {
 
   console.log("\n== 008: paridad inbox — echoes de coexistence (US1) ==");
   const LEAD = "5214627008001"; // canónica: 524627008001
-  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   // Un inbound primero: la conversación existe y la ventana queda abierta.
   await api("/api/dev/wa-mock/inbound", {
@@ -475,7 +474,7 @@ async function main() {
     method: "POST",
     body: JSON.stringify({
       type: "location",
-      location: { latitude: 21.019, longitude: -101.257, name: "Oficina AISHIA" },
+      location: { latitude: 21.019, longitude: -101.257, name: "Oficina Central" },
     }),
   });
   ok("ubicación enviada", locRes.res.ok, JSON.stringify(locRes.json));
