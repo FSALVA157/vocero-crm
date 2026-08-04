@@ -378,6 +378,7 @@ export async function sendTemplate(input: {
       type: "template",
       text: renderBody(template.body, input.variable?.trim()),
       status: "pending",
+      origin: "template",
     })
     .returning();
   const message = inserted[0]!;

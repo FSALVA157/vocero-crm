@@ -24,11 +24,15 @@ export class MetaApiError extends Error {
     this.details = opts.details;
   }
 
-  /** Token vencido/revocado → la conexión requiere re-autenticación. */
+  /**
+   * Token vencido/revocado → la conexión requiere re-autenticación.
+   * Meta etiqueta como "OAuthException" también errores transitorios 5xx
+   * (ej. código 2 "service temporarily unavailable"), así que el type por sí
+   * solo NO basta: solo 401 o código 190, y jamás con status ≥ 500.
+   */
   get isAuthError(): boolean {
-    return (
-      this.status === 401 || this.code === 190 || this.type === "OAuthException"
-    );
+    if (this.status >= 500) return false;
+    return this.status === 401 || this.code === 190;
   }
 }
 

@@ -37,6 +37,13 @@ export function mediaLabel(type: string): string {
   return MEDIA_LABELS[type] ?? "Contenido";
 }
 
+/** 008 — Tamaño humano de un adjunto. */
+export function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export function previewText(preview: string | null): string {
   if (!preview) return "";
   return MEDIA_LABELS[preview] ? `📎 ${MEDIA_LABELS[preview]}` : preview;

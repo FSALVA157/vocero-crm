@@ -39,15 +39,43 @@ export function isValidSignature(
 
 /* ---------- Tipos del payload de Meta (subconjunto soportado) ---------- */
 
+/** Payload de un adjunto en un mensaje del webhook (008). */
+export type WebhookMediaPayload = {
+  id?: string;
+  mime_type?: string;
+  sha256?: string;
+  caption?: string;
+  /** Solo documentos. */
+  filename?: string;
+  /** Solo audio: true si es nota de voz. */
+  voice?: boolean;
+};
+
+export type WebhookLocation = {
+  latitude?: number;
+  longitude?: number;
+  name?: string;
+  address?: string;
+};
+
 export type WebhookMessage = {
   /** Teléfono del remitente. OPCIONAL desde la migración de Meta a BSUID (003). */
   from?: string;
   /** Business-Scoped User ID del remitente cuando no hay teléfono (003). */
   from_user_id?: string;
+  /** Destinatario — presente en echoes de coexistence (008): el wa_id del lead. */
+  to?: string;
   id: string;
   timestamp: string;
   type: string;
   text?: { body: string };
+  image?: WebhookMediaPayload;
+  video?: WebhookMediaPayload;
+  audio?: WebhookMediaPayload;
+  document?: WebhookMediaPayload;
+  sticker?: WebhookMediaPayload;
+  location?: WebhookLocation;
+  contacts?: unknown[];
 };
 
 export type WebhookStatus = {
@@ -63,6 +91,8 @@ export type WebhookValue = {
   metadata?: { display_phone_number?: string; phone_number_id?: string };
   contacts?: { profile?: { name?: string }; wa_id?: string; user_id?: string }[];
   messages?: WebhookMessage[];
+  /** Echoes de coexistence (008): mensajes enviados desde la app del teléfono. */
+  message_echoes?: WebhookMessage[];
   statuses?: WebhookStatus[];
   // message_template_status_update
   event?: string;

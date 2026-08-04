@@ -90,6 +90,21 @@ export async function POST(req: Request, ctx: Params) {
   const token = bearerToken(req);
   if (token.endsWith("-invalid")) return invalidTokenResponse();
 
+  // POST {phoneNumberId}/media (multipart, 008) → id de media subido.
+  // Va ANTES del parseo JSON: el body es form-data.
+  if (path.length === 2 && path[1] === "media") {
+    const form = await req.formData().catch(() => null);
+    const file = form?.get("file");
+    if (!(file instanceof Blob)) {
+      return Response.json(
+        { error: { message: "missing file", type: "GraphMethodException", code: 100 } },
+        { status: 400 }
+      );
+    }
+    // El id arranca con "media" para que el GET de metadata lo resuelva.
+    return Response.json({ id: `media-up-${nextN()}` });
+  }
+
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
 
   // POST {phoneNumberId}/messages con status:"read" → typing/leído:
