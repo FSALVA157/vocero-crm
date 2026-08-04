@@ -296,9 +296,298 @@ async function main() {
     `etapa=${detail?.stage?.name} esperada=${firstStage?.name}`
   );
 
-  console.log(
-    `\n===== ${checks - failures}/${checks} checks OK, ${failures} fallos =====`
+  console.log("\n== 008: paridad inbox — echoes de coexistence (US1) ==");
+  const LEAD = "5214627008001"; // canónica: 524627008001
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  // Un inbound primero: la conversación existe y la ventana queda abierta.
+  await api("/api/dev/wa-mock/inbound", {
+    method: "POST",
+    body: JSON.stringify({
+      phoneNumberId: PN,
+      from: LEAD,
+      name: "Lead 008",
+      text: "hola, quiero informes",
+      waMessageId: "wamid.e2e.008.in.1",
+    }),
+  });
+  await sleep(1200);
+  const findConv008 = async () =>
+    (((await api("/api/conversations")).json?.conversations) ?? []).find(
+      (c) => c.contact.phone === "524627008001"
+    );
+  let conv008 = await findConv008();
+  ok("conversación del lead 008 creada", Boolean(conv008), "sin conversación");
+  const inboundAtBefore = conv008?.lastInboundAt;
+
+  // Echo: el dueño contesta A MANO desde la app del teléfono.
+  const echo1 = await api("/api/dev/wa-mock/echo", {
+    method: "POST",
+    body: JSON.stringify({
+      phoneNumberId: PN,
+      to: LEAD,
+      text: "te contesto yo, dame un minuto",
+      waMessageId: "wamid.e2e.008.echo.1",
+    }),
+  });
+  ok("echo entregado al webhook", echo1.res.ok, JSON.stringify(echo1.json));
+  await sleep(900);
+
+  const msgs1 = (await api(`/api/conversations/${conv008.id}/messages`)).json?.messages ?? [];
+  const manual1 = msgs1.find((m) => m.text === "te contesto yo, dame un minuto");
+  ok(
+    "el mensaje manual aparece como saliente origin=manual",
+    manual1?.direction === "out" && manual1?.origin === "manual" && manual1?.status === "sent",
+    JSON.stringify(manual1)
   );
+
+  conv008 = await findConv008();
+  ok(
+    "la IA quedó pausada con handoff manual_reply",
+    conv008?.aiEnabled === false && conv008?.handoffReason === "manual_reply",
+    JSON.stringify({ aiEnabled: conv008?.aiEnabled, reason: conv008?.handoffReason })
+  );
+  ok(
+    "el echo NO tocó la ventana de 24 h (lastInboundAt intacto)",
+    conv008?.lastInboundAt === inboundAtBefore,
+    `${inboundAtBefore} → ${conv008?.lastInboundAt}`
+  );
+
+  // Idempotencia: el mismo echo otra vez no duplica.
+  await api("/api/dev/wa-mock/echo", {
+    method: "POST",
+    body: JSON.stringify({
+      phoneNumberId: PN,
+      to: LEAD,
+      text: "te contesto yo, dame un minuto",
+      waMessageId: "wamid.e2e.008.echo.1",
+    }),
+  });
+  await sleep(700);
+  const msgs2 = (await api(`/api/conversations/${conv008.id}/messages`)).json?.messages ?? [];
+  ok(
+    "echo duplicado (mismo wamid) no duplica el mensaje",
+    msgs2.filter((m) => m.text === "te contesto yo, dame un minuto").length === 1
+  );
+
+  // Variante defensiva: echoes bajo la clave `messages`.
+  await api("/api/dev/wa-mock/echo", {
+    method: "POST",
+    body: JSON.stringify({
+      phoneNumberId: PN,
+      to: LEAD,
+      text: "segundo mensaje manual",
+      waMessageId: "wamid.e2e.008.echo.2",
+      useMessagesKey: true,
+    }),
+  });
+  await sleep(700);
+  const msgs3 = (await api(`/api/conversations/${conv008.id}/messages`)).json?.messages ?? [];
+  ok(
+    "echo bajo la clave `messages` también se ingiere (parser tolerante)",
+    msgs3.some((m) => m.text === "segundo mensaje manual" && m.origin === "manual")
+  );
+
+  // Echo hacia un número SIN conversación previa → la crea.
+  await api("/api/dev/wa-mock/echo", {
+    method: "POST",
+    body: JSON.stringify({
+      phoneNumberId: PN,
+      to: "5214627008002",
+      text: "hola, te escribo del anuncio",
+      waMessageId: "wamid.e2e.008.echo.3",
+    }),
+  });
+  await sleep(700);
+  const convNew = (((await api("/api/conversations")).json?.conversations) ?? []).find(
+    (c) => c.contact.phone === "524627008002"
+  );
+  ok("echo a número nuevo crea contacto y conversación", Boolean(convNew));
+
+  // Reactivación desde el CRM (flujo existente de handoff).
+  const react = await api(`/api/conversations/${conv008.id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ reactivate: true }),
+  });
+  conv008 = await findConv008();
+  ok(
+    "reactivar la IA desde el CRM limpia el handoff",
+    react.res.ok && conv008?.aiEnabled === true && !conv008?.handoffReason
+  );
+
+  console.log("\n== 008: enviar adjuntos desde el composer (US2) ==");
+  const JPEG_BYTES = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0, 0, 0, 0xff, 0xd9]);
+  const mediaForm = new FormData();
+  mediaForm.set(
+    "file",
+    new Blob([JPEG_BYTES], { type: "image/jpeg" }),
+    "local.jpg"
+  );
+  mediaForm.set("caption", "mira nuestro local");
+  const upRes = await fetch(`${BASE}/api/conversations/${conv008.id}/messages/media`, {
+    method: "POST",
+    headers: { cookie, origin: BASE },
+    body: mediaForm,
+  });
+  const upJson = await upRes.json().catch(() => null);
+  ok("imagen con caption enviada (201)", upRes.status === 201, JSON.stringify(upJson));
+
+  const msgs4 = (await api(`/api/conversations/${conv008.id}/messages`)).json?.messages ?? [];
+  const sentImg = msgs4.find((m) => m.media?.caption === "mira nuestro local");
+  ok(
+    "el saliente con imagen trae asset disponible y origin=operator",
+    sentImg?.type === "image" &&
+      sentImg?.origin === "operator" &&
+      sentImg?.media?.fetchStatus === "available",
+    JSON.stringify(sentImg)
+  );
+
+  const imgBin = await fetch(`${BASE}/api/media/${sentImg?.media?.assetId}`, {
+    headers: { cookie, origin: BASE },
+  });
+  ok(
+    "GET /api/media/{id} sirve el binario con su content-type",
+    imgBin.ok && (imgBin.headers.get("content-type") ?? "").includes("image/jpeg")
+  );
+
+  const outbox008 = (await api("/api/dev/wa-mock/outbox")).json?.outbox ?? [];
+  ok(
+    "el envío llegó a Graph como type=image con media id subido",
+    outbox008.some((o) => o.type === "image" && JSON.stringify(o.body).includes("media-up-"))
+  );
+
+  // Camino infeliz: archivo que excede el límite (imagen > 5 MB) → 413 previo.
+  const bigForm = new FormData();
+  bigForm.set(
+    "file",
+    new Blob([Buffer.alloc(6 * 1024 * 1024)], { type: "image/png" }),
+    "grande.png"
+  );
+  const bigRes = await fetch(`${BASE}/api/conversations/${conv008.id}/messages/media`, {
+    method: "POST",
+    headers: { cookie, origin: BASE },
+    body: bigForm,
+  });
+  ok("imagen de 6 MB → 413 too_large ANTES de enviar", bigRes.status === 413);
+
+  // Ubicación (payload estructurado, sin archivo).
+  const locRes = await api(`/api/conversations/${conv008.id}/messages`, {
+    method: "POST",
+    body: JSON.stringify({
+      type: "location",
+      location: { latitude: 21.019, longitude: -101.257, name: "Oficina AISHIA" },
+    }),
+  });
+  ok("ubicación enviada", locRes.res.ok, JSON.stringify(locRes.json));
+  const msgs5 = (await api(`/api/conversations/${conv008.id}/messages`)).json?.messages ?? [];
+  const sentLoc = msgs5.find((m) => m.type === "location" && m.direction === "out");
+  ok(
+    "la ubicación viaja como payload (lat/long/name) sin binario",
+    sentLoc?.media?.kind === "location" && sentLoc?.media?.payload?.latitude === 21.019,
+    JSON.stringify(sentLoc?.media)
+  );
+  const outboxLoc = (await api("/api/dev/wa-mock/outbox")).json?.outbox ?? [];
+  ok(
+    "Graph recibió type=location",
+    outboxLoc.some((o) => o.type === "location")
+  );
+
+  console.log("\n== 008: previews de adjuntos entrantes (US3) ==");
+  await api("/api/dev/wa-mock/inbound", {
+    method: "POST",
+    body: JSON.stringify({
+      phoneNumberId: PN,
+      from: LEAD,
+      type: "image",
+      mediaId: "media-e2e-img-1",
+      caption: "foto de mi negocio",
+      waMessageId: "wamid.e2e.008.in.img",
+    }),
+  });
+  await sleep(1600); // ingesta + descarga in-process del binario
+  const msgs6 = (await api(`/api/conversations/${conv008.id}/messages`)).json?.messages ?? [];
+  const inImg = msgs6.find((m) => m.media?.caption === "foto de mi negocio");
+  ok(
+    "imagen entrante queda disponible tras la descarga in-process",
+    inImg?.direction === "in" &&
+      inImg?.media?.kind === "image" &&
+      inImg?.media?.fetchStatus === "available",
+    JSON.stringify(inImg?.media)
+  );
+  const inImgBin = await fetch(`${BASE}/api/media/${inImg?.media?.assetId}`, {
+    headers: { cookie, origin: BASE },
+  });
+  ok("el binario entrante se sirve desde el volumen local", inImgBin.ok);
+
+  // Ubicación entrante: payload directo, sin binario (404 en /api/media).
+  await api("/api/dev/wa-mock/inbound", {
+    method: "POST",
+    body: JSON.stringify({
+      phoneNumberId: PN,
+      from: LEAD,
+      type: "location",
+      location: { latitude: 20.5, longitude: -100.8, name: "Mi taller" },
+      waMessageId: "wamid.e2e.008.in.loc",
+    }),
+  });
+  await sleep(900);
+  const msgs7 = (await api(`/api/conversations/${conv008.id}/messages`)).json?.messages ?? [];
+  const inLoc = msgs7.find((m) => m.type === "location" && m.direction === "in");
+  ok(
+    "ubicación entrante trae payload directo",
+    inLoc?.media?.payload?.name === "Mi taller",
+    JSON.stringify(inLoc?.media)
+  );
+
+  // Camino infeliz: media cuya descarga falla (metadata sin url) → failed,
+  // el mensaje se conserva y /api/media responde 410.
+  await api("/api/dev/wa-mock/inbound", {
+    method: "POST",
+    body: JSON.stringify({
+      phoneNumberId: PN,
+      from: LEAD,
+      type: "image",
+      mediaId: "broken-no-url",
+      waMessageId: "wamid.e2e.008.in.broken",
+    }),
+  });
+  await sleep(1600);
+  const msgs8 = (await api(`/api/conversations/${conv008.id}/messages`)).json?.messages ?? [];
+  const broken = msgs8.find((m) => m.id !== inImg?.id && m.media?.fetchStatus === "failed");
+  ok(
+    "descarga fallida degrada a failed sin perder el mensaje",
+    Boolean(broken),
+    JSON.stringify(msgs8.filter((m) => m.media).map((m) => m.media))
+  );
+  if (broken) {
+    const goneRes = await fetch(`${BASE}/api/media/${broken.media.assetId}`, {
+      headers: { cookie, origin: BASE },
+    });
+    ok("asset fallido → 410 gone en /api/media", goneRes.status === 410);
+  }
+
+  // Echo CON adjunto (AC-5 de US1): la foto que el dueño mandó desde el cel.
+  await api("/api/dev/wa-mock/echo", {
+    method: "POST",
+    body: JSON.stringify({
+      phoneNumberId: PN,
+      to: LEAD,
+      type: "image",
+      mediaId: "media-e2e-echo-img",
+      caption: "así quedaría tu logo",
+      waMessageId: "wamid.e2e.008.echo.img",
+    }),
+  });
+  await sleep(1600);
+  const msgs9 = (await api(`/api/conversations/${conv008.id}/messages`)).json?.messages ?? [];
+  const echoImg = msgs9.find((m) => m.media?.caption === "así quedaría tu logo");
+  ok(
+    "echo con imagen: manual + asset descargado y previsualizable",
+    echoImg?.origin === "manual" && echoImg?.media?.fetchStatus === "available",
+    JSON.stringify(echoImg?.media)
+  );
+
+  console.log(`\n===== ${checks - failures}/${checks} checks OK, ${failures} fallos =====`);
   process.exit(failures > 0 ? 1 : 0);
 }
 

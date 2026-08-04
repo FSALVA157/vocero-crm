@@ -246,6 +246,7 @@ async function persistTestOutbound(
     text,
     status: "sent",
     aiGenerated: true,
+    origin: "ai",
   });
   await db
     .update(schema.conversation)

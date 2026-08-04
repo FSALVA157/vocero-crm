@@ -15,6 +15,26 @@ export type ConversationDto = {
   preview: string | null;
 };
 
+/** 008 — Adjunto de un mensaje, para previsualización en el hilo. */
+export type MessageMediaDto = {
+  assetId: string;
+  kind:
+    | "image"
+    | "video"
+    | "audio"
+    | "document"
+    | "sticker"
+    | "location"
+    | "contacts";
+  mimeType: string | null;
+  fileName: string | null;
+  fileSize: number | null;
+  caption: string | null;
+  fetchStatus: "available" | "pending" | "failed";
+  /** location {latitude, longitude, name?, address?} / contacts (subset). */
+  payload: unknown;
+};
+
 export type MessageDto = {
   id: string;
   conversationId: string;
@@ -23,6 +43,9 @@ export type MessageDto = {
   text: string | null;
   status: "pending" | "sent" | "delivered" | "read" | "failed";
   aiGenerated: boolean;
+  /** 008 — Origen del saliente (en entrantes viene 'operator' y se ignora). */
+  origin: "ai" | "operator" | "manual" | "template";
+  media: MessageMediaDto | null;
   createdAt: string;
 };
 

@@ -2,7 +2,7 @@ import { z } from "zod";
 import { apiError, parseBody, withAuth } from "@/lib/api";
 import { getConversation, listMessages } from "@/server/inbox/queries";
 import { serializeMessage } from "@/server/inbox/ingest";
-import { SendError, sendText } from "@/server/inbox/send";
+import { SendError, sendStructured, sendText } from "@/server/inbox/send";
 
 export const dynamic = "force-dynamic";
 
@@ -21,10 +21,40 @@ export const GET = withAuth(async (session, req: Request, ctx: Params) => {
     id,
     since && !Number.isNaN(since.getTime()) ? since : undefined
   );
-  return Response.json({ messages: messages.map(serializeMessage) });
+  return Response.json({
+    messages: messages.map((r) => serializeMessage(r.message, r.media)),
+  });
 });
 
-const sendSchema = z.object({ text: z.string().trim().min(1).max(4096) });
+// 008: además de texto, el body acepta ubicación y contactos (discriminado
+// por `type`; sin `type` sigue siendo texto — compat con clientes previos).
+const sendSchema = z.union([
+  z.object({
+    type: z.literal("text").optional(),
+    text: z.string().trim().min(1).max(4096),
+  }),
+  z.object({
+    type: z.literal("location"),
+    location: z.object({
+      latitude: z.number().min(-90).max(90),
+      longitude: z.number().min(-180).max(180),
+      name: z.string().trim().max(1000).optional(),
+      address: z.string().trim().max(1000).optional(),
+    }),
+  }),
+  z.object({
+    type: z.literal("contacts"),
+    contacts: z
+      .array(
+        z.object({
+          name: z.string().trim().min(1).max(200),
+          phone: z.string().trim().min(5).max(30),
+        })
+      )
+      .min(1)
+      .max(5),
+  }),
+]);
 
 const SEND_ERROR_STATUS: Record<SendError["code"], number> = {
   sandbox_violation: 403,
@@ -33,6 +63,7 @@ const SEND_ERROR_STATUS: Record<SendError["code"], number> = {
   window_closed: 409,
   meta_error: 422,
   meta_unavailable: 503,
+  upload_failed: 502,
 };
 
 export const POST = withAuth(async (session, req: Request, ctx: Params) => {
@@ -41,11 +72,27 @@ export const POST = withAuth(async (session, req: Request, ctx: Params) => {
   if (!body.ok) return body.response;
 
   try {
-    const result = await sendText({
-      conversationId: id,
-      organizationId: session.organizationId,
-      text: body.data.text,
-    });
+    const data = body.data;
+    const result =
+      "text" in data
+        ? await sendText({
+            conversationId: id,
+            organizationId: session.organizationId,
+            text: data.text,
+          })
+        : data.type === "location"
+          ? await sendStructured({
+              conversationId: id,
+              organizationId: session.organizationId,
+              kind: "location",
+              location: data.location,
+            })
+          : await sendStructured({
+              conversationId: id,
+              organizationId: session.organizationId,
+              kind: "contacts",
+              contacts: data.contacts,
+            });
     return Response.json({ messageId: result.messageId });
   } catch (err) {
     if (err instanceof SendError) {
