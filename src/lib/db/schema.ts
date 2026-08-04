@@ -190,7 +190,8 @@ export const conversation = pgTable(
     aiEnabled: boolean("ai_enabled").notNull().default(true),
     handoffAt: timestamp("handoff_at"),
     handoffReason: text("handoff_reason", {
-      enum: ["cliente", "modelo", "error", "ventana"],
+      // 008: manual_reply = el dueño respondió desde la app del teléfono.
+      enum: ["cliente", "modelo", "error", "ventana", "manual_reply"],
     }),
     lastInboundAt: timestamp("last_inbound_at"),
     lastMessageAt: timestamp("last_message_at"),
@@ -229,6 +230,20 @@ export const message = pgTable(
       .default("pending"),
     error: text("error"),
     aiGenerated: boolean("ai_generated").notNull().default(false),
+    /**
+     * 008 — Origen del saliente: IA (bot), operador del CRM, manual desde la
+     * app de WhatsApp Business del teléfono (echo), o plantilla. En entrantes
+     * queda el default y la UI lo ignora.
+     */
+    origin: text("origin", {
+      enum: ["ai", "operator", "manual", "template"],
+    })
+      .notNull()
+      .default("operator"),
+    /** 008 — Adjunto del mensaje (imagen, doc, ubicación…), si lo hay. */
+    mediaAssetId: text("media_asset_id").references(() => mediaAsset.id, {
+      onDelete: "set null",
+    }),
     waTimestamp: timestamp("wa_timestamp"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
@@ -238,6 +253,55 @@ export const message = pgTable(
       t.conversationId,
       t.createdAt
     ),
+  ]
+);
+
+/**
+ * 008 — Adjuntos: archivo (imagen/video/audio/documento/sticker) copiado al
+ * volumen local (`MEDIA_DIR`) o contenido estructurado (location/contacts) en
+ * `payload`. Meta expira sus archivos (~30 días): el disco propio es la
+ * fuente durable (constitución II: sin S3/R2).
+ */
+export const mediaAsset = pgTable(
+  "media_asset",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    kind: text("kind", {
+      enum: [
+        "image",
+        "video",
+        "audio",
+        "document",
+        "sticker",
+        "location",
+        "contacts",
+      ],
+    }).notNull(),
+    /** media id de Graph (entrantes/salientes subidos); NULL en location/contacts. */
+    waMediaId: text("wa_media_id"),
+    mimeType: text("mime_type"),
+    fileName: text("file_name"),
+    fileSize: integer("file_size"),
+    caption: text("caption"),
+    /** location {latitude, longitude, name?, address?} o contacts (subset). */
+    payload: jsonb("payload"),
+    /** Ruta relativa dentro de MEDIA_DIR; NULL si aún no descargado o no aplica. */
+    storagePath: text("storage_path"),
+    fetchStatus: text("fetch_status", {
+      enum: ["available", "pending", "failed"],
+    })
+      .notNull()
+      .default("pending"),
+    fetchError: text("fetch_error"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("media_asset_org_idx").on(t.organizationId, t.createdAt),
+    index("media_asset_wa_media_idx").on(t.waMediaId),
   ]
 );
 

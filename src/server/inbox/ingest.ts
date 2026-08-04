@@ -4,7 +4,12 @@ import { newId } from "@/lib/db/ids";
 import { normalizeMx } from "@/lib/meta/client";
 import { publish } from "@/server/events/bus";
 import { getCredentialsByPhoneNumberId } from "@/server/whatsapp/credentials";
-import type { WebhookValue } from "@/server/inbox/webhook";
+import { ensureAssetAvailable } from "@/server/whatsapp/media";
+import type {
+  WebhookMediaPayload,
+  WebhookMessage,
+  WebhookValue,
+} from "@/server/inbox/webhook";
 import {
   getOrCreateContactByIdentity,
   resolveIdentity,
@@ -25,6 +30,116 @@ const SUPPORTED_TYPES = new Set([
   "location",
   "contacts",
 ]);
+
+/** Tipos con archivo binario en Graph (008). */
+const BINARY_MEDIA_TYPES = new Set([
+  "image",
+  "video",
+  "audio",
+  "document",
+  "sticker",
+] as const);
+
+type MediaInput = {
+  kind: (typeof schema.mediaAsset.$inferSelect)["kind"];
+  waMediaId: string | null;
+  mimeType: string | null;
+  fileName: string | null;
+  caption: string | null;
+  payload: unknown;
+  fetchStatus: "available" | "pending";
+};
+
+/**
+ * 008 — Extrae el adjunto de un mensaje del webhook (entrante o echo).
+ * Tolerante: payload incompleto → null (el mensaje se conserva sin adjunto).
+ */
+export function mediaInputFrom(msg: WebhookMessage): MediaInput | null {
+  if (msg.type === "location" && msg.location) {
+    const { latitude, longitude } = msg.location;
+    if (typeof latitude !== "number" || typeof longitude !== "number") {
+      return null;
+    }
+    return {
+      kind: "location",
+      waMediaId: null,
+      mimeType: null,
+      fileName: null,
+      caption: null,
+      payload: msg.location,
+      fetchStatus: "available",
+    };
+  }
+  if (msg.type === "contacts" && Array.isArray(msg.contacts) && msg.contacts.length) {
+    return {
+      kind: "contacts",
+      waMediaId: null,
+      mimeType: null,
+      fileName: null,
+      caption: null,
+      payload: msg.contacts,
+      fetchStatus: "available",
+    };
+  }
+  if ((BINARY_MEDIA_TYPES as Set<string>).has(msg.type)) {
+    const media = msg[msg.type as "image" | "video" | "audio" | "document" | "sticker"] as
+      | WebhookMediaPayload
+      | undefined;
+    if (!media?.id) return null;
+    return {
+      kind: msg.type as MediaInput["kind"],
+      waMediaId: media.id,
+      mimeType: media.mime_type ?? null,
+      fileName: media.filename ?? null,
+      caption: media.caption ?? null,
+      payload: null,
+      fetchStatus: "pending",
+    };
+  }
+  return null;
+}
+
+/**
+ * Crea el media_asset de un mensaje recién insertado y dispara la descarga en
+ * segundo plano si hay binario. Jamás lanza hacia el webhook (FR-013).
+ */
+async function attachMediaAsset(
+  organizationId: string,
+  messageId: string,
+  media: MediaInput
+): Promise<typeof schema.mediaAsset.$inferSelect | null> {
+  try {
+    const db = getDb();
+    const inserted = await db
+      .insert(schema.mediaAsset)
+      .values({
+        id: newId("mediaAsset"),
+        organizationId,
+        kind: media.kind,
+        waMediaId: media.waMediaId,
+        mimeType: media.mimeType,
+        fileName: media.fileName,
+        caption: media.caption,
+        payload: media.payload ?? null,
+        fetchStatus: media.fetchStatus,
+      })
+      .returning();
+    const asset = inserted[0];
+    if (!asset) return null;
+    await db
+      .update(schema.message)
+      .set({ mediaAssetId: asset.id })
+      .where(eq(schema.message.id, messageId));
+    if (asset.fetchStatus === "pending") {
+      // Descarga in-process, sin bloquear la ingesta; on-demand reintenta.
+      void ensureAssetAvailable(organizationId, asset.id).catch(() => {});
+    }
+    return asset;
+  } catch (err) {
+    console.warn(`[media] no se pudo registrar el adjunto de ${messageId}:`, err);
+    return null;
+  }
+}
 
 /**
  * Alta/resolución de contacto por teléfono (alta manual / seeds). La ingesta
@@ -116,8 +231,128 @@ export async function processMessagesValue(value: WebhookValue): Promise<void> {
       type: msg.type,
       text: msg.text?.body ?? null,
       timestamp: msg.timestamp,
+      media: mediaInputFrom(msg),
     });
   }
+}
+
+/**
+ * 008 — Echoes de coexistence (`smb_message_echoes`): mensajes que el dueño
+ * envió A MANO desde la app de WhatsApp Business del teléfono. Se registran
+ * como salientes `origin='manual'` y pausan la IA (decisión del dueño
+ * 2026-08-04). JAMÁS tocan la ventana de 24 h ni disparan al agente.
+ */
+export async function processEchoesValue(value: WebhookValue): Promise<void> {
+  const phoneNumberId = value.metadata?.phone_number_id;
+  if (!phoneNumberId) return;
+
+  const credentials = await getCredentialsByPhoneNumberId(phoneNumberId);
+  if (!credentials) {
+    console.warn(
+      `[webhook] echo para phone_number_id desconocido (${phoneNumberId}): descartado`
+    );
+    return;
+  }
+
+  // Meta documenta `message_echoes`; parser tolerante a `messages` (R1).
+  const echoes = value.message_echoes ?? value.messages ?? [];
+  for (const echo of echoes) {
+    if (!SUPPORTED_TYPES.has(echo.type)) continue;
+    if (!echo.to) {
+      console.warn(`[webhook] echo ${echo.id} sin destinatario: descartado`);
+      continue;
+    }
+    try {
+      await ingestManualEcho(credentials.organizationId, echo);
+    } catch (err) {
+      // Un echo malformado jamás tumba el webhook (edge case del spec).
+      console.error(`[webhook] error procesando echo ${echo.id}:`, err);
+    }
+  }
+}
+
+async function ingestManualEcho(
+  organizationId: string,
+  echo: WebhookMessage
+): Promise<void> {
+  const db = getDb();
+  const identity = normalizeMx(echo.to!);
+
+  const { contact } = await getOrCreateContactByIdentity(organizationId, {
+    identity,
+    phone: identity,
+    waUserId: null,
+    profileName: null,
+  });
+  const conversation = await getOrCreateConversation(organizationId, contact.id);
+
+  const waTimestamp = toDate(echo.timestamp);
+
+  // Idempotencia dura: los mensajes ya registrados (o echoes repetidos) no
+  // duplican efectos — mismo wa_message_id → sin inserción ni handoff extra.
+  const inserted = await db
+    .insert(schema.message)
+    .values({
+      id: newId("message"),
+      organizationId,
+      conversationId: conversation.id,
+      waMessageId: echo.id,
+      direction: "out",
+      type: echo.type,
+      text: echo.text?.body ?? null,
+      status: "sent",
+      origin: "manual",
+      waTimestamp,
+    })
+    .onConflictDoNothing({ target: [schema.message.waMessageId] })
+    .returning();
+  const message = inserted[0];
+  if (!message) return; // duplicado
+
+  const mediaInput = mediaInputFrom(echo);
+  const asset = mediaInput
+    ? await attachMediaAsset(organizationId, message.id, mediaInput)
+    : null;
+
+  // Solo lastMessageAt: un mensaje del negocio NUNCA abre la ventana de 24 h.
+  await db
+    .update(schema.conversation)
+    .set({ lastMessageAt: waTimestamp, updatedAt: new Date() })
+    .where(eq(schema.conversation.id, conversation.id));
+
+  // Pausa automática de la IA, idempotente y atómica (solo si no hay handoff).
+  const paused = await db
+    .update(schema.conversation)
+    .set({
+      aiEnabled: false,
+      handoffAt: new Date(),
+      handoffReason: "manual_reply",
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(schema.conversation.id, conversation.id),
+        sql`${schema.conversation.handoffAt} is null`
+      )
+    )
+    .returning();
+  if (paused[0]) {
+    console.log(
+      `[webhook] respuesta manual del dueño en ${conversation.id} — IA pausada (manual_reply)`
+    );
+  }
+
+  publish(organizationId, {
+    type: "message.new",
+    data: {
+      conversationId: conversation.id,
+      message: serializeMessage(message, asset),
+    },
+  });
+  publish(organizationId, {
+    type: "conversation.updated",
+    data: { conversation: { id: conversation.id } },
+  });
 }
 
 export async function ingestInboundMessage(input: {
@@ -127,6 +362,7 @@ export async function ingestInboundMessage(input: {
   type: string;
   text: string | null;
   timestamp: string;
+  media?: MediaInput | null;
 }): Promise<void> {
   const db = getDb();
   const { organizationId } = input;
@@ -161,6 +397,10 @@ export async function ingestInboundMessage(input: {
   const message = inserted[0];
   if (!message) return; // duplicado
 
+  const asset = input.media
+    ? await attachMediaAsset(organizationId, message.id, input.media)
+    : null;
+
   await db
     .update(schema.conversation)
     .set({
@@ -175,7 +415,10 @@ export async function ingestInboundMessage(input: {
 
   publish(organizationId, {
     type: "message.new",
-    data: { conversationId: conversation.id, message: serializeMessage(message) },
+    data: {
+      conversationId: conversation.id,
+      message: serializeMessage(message, asset),
+    },
   });
   publish(organizationId, {
     type: "conversation.updated",
@@ -191,7 +434,10 @@ function toDate(timestamp: string): Date {
   return new Date();
 }
 
-export function serializeMessage(m: typeof schema.message.$inferSelect) {
+export function serializeMessage(
+  m: typeof schema.message.$inferSelect,
+  media: typeof schema.mediaAsset.$inferSelect | null = null
+) {
   return {
     id: m.id,
     conversationId: m.conversationId,
@@ -200,6 +446,19 @@ export function serializeMessage(m: typeof schema.message.$inferSelect) {
     text: m.text,
     status: m.status,
     aiGenerated: m.aiGenerated,
+    origin: m.origin,
+    media: media
+      ? {
+          assetId: media.id,
+          kind: media.kind,
+          mimeType: media.mimeType,
+          fileName: media.fileName,
+          fileSize: media.fileSize,
+          caption: media.caption,
+          fetchStatus: media.fetchStatus,
+          payload: media.payload,
+        }
+      : null,
     createdAt: (m.waTimestamp ?? m.createdAt).toISOString(),
   };
 }

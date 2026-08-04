@@ -94,8 +94,12 @@ export async function listMessages(
 ) {
   const db = getDb();
   return db
-    .select()
+    .select({ message: schema.message, media: schema.mediaAsset })
     .from(schema.message)
+    .leftJoin(
+      schema.mediaAsset,
+      eq(schema.message.mediaAssetId, schema.mediaAsset.id)
+    )
     .where(
       scoped(
         schema.message.organizationId,

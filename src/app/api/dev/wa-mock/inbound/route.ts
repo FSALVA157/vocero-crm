@@ -20,6 +20,12 @@ const schema = z
     text: z.string().optional(),
     waMessageId: z.string().optional(),
     timestamp: z.number().optional(),
+    // 008 — adjuntos simulados
+    mediaId: z.string().optional(),
+    mimeType: z.string().optional(),
+    caption: z.string().optional(),
+    filename: z.string().optional(),
+    location: z.record(z.unknown()).optional(),
   })
   .refine((v) => v.from || v.fromUserId, {
     message: "Se requiere from o fromUserId",

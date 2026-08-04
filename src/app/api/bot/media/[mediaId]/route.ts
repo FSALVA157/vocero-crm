@@ -1,25 +1,19 @@
 import { apiError } from "@/lib/api";
 import { requireBotKey, resolveInstanceOrg } from "@/server/bot/auth";
 import { getCredentialsByOrg } from "@/server/whatsapp/credentials";
-import { graphRequest, MetaApiError } from "@/lib/meta/client";
+import { downloadGraphMedia, MediaFetchError } from "@/server/whatsapp/media";
 
 export const dynamic = "force-dynamic";
 
-/** Límite de adjuntos de la Cloud API. */
+/** Límite para el bot (transcribe audio/imagen; nunca documentos de 100 MB). */
 const MAX_MEDIA_BYTES = 16 * 1024 * 1024;
 
-type MediaMeta = {
-  url?: string;
-  mime_type?: string;
-  file_size?: number;
-};
-
 /**
- * Descarga de un adjunto de Meta para un cerebro externo.
+ * 006 (amendment 002) — Descarga de un adjunto de Meta para el bot.
  * GET /api/bot/media/{mediaId} → binario + content-type.
  *
  * El token de WhatsApp NO sale del CRM: el bot pide aquí, jamás a Meta.
- * Flujo Graph: GET {mediaId} → url efímera → GET url con Bearer.
+ * Flujo Graph delegado al helper compartido (008): src/server/whatsapp/media.
  */
 export async function GET(
   req: Request,
@@ -42,54 +36,29 @@ export async function GET(
     return apiError(422, "invalid", "mediaId inválido");
   }
 
-  let meta: MediaMeta;
   try {
-    meta = await graphRequest<MediaMeta>(mediaId, { token: creds.token });
-  } catch (err) {
-    const status = err instanceof MetaApiError && err.status === 404 ? 404 : 502;
-    return apiError(
-      status,
-      "media_meta_failed",
-      "Meta no entregó la metadata del adjunto"
+    const { data, mimeType } = await downloadGraphMedia(
+      creds.token,
+      mediaId,
+      MAX_MEDIA_BYTES
     );
-  }
-  if (!meta.url) {
-    return apiError(502, "media_meta_failed", "Meta no entregó URL del adjunto");
-  }
-  if (meta.file_size && meta.file_size > MAX_MEDIA_BYTES) {
-    return apiError(413, "too_large", "El adjunto excede el límite de 16 MB");
-  }
-
-  let res: Response;
-  try {
-    res = await fetch(meta.url, {
-      headers: { Authorization: `Bearer ${creds.token}` },
+    return new Response(new Uint8Array(data), {
+      headers: {
+        "content-type": mimeType ?? "application/octet-stream",
+        "cache-control": "no-store",
+      },
     });
-  } catch {
-    return apiError(
-      502,
-      "media_download_failed",
-      "No se pudo descargar el adjunto"
-    );
+  } catch (err) {
+    if (err instanceof MediaFetchError) {
+      if (err.message.includes("límite")) {
+        return apiError(413, "too_large", "El adjunto excede el límite de 16 MB");
+      }
+      return apiError(
+        err.gone ? 404 : 502,
+        "media_download_failed",
+        err.message
+      );
+    }
+    return apiError(502, "media_download_failed", "No se pudo descargar el adjunto");
   }
-  if (!res.ok) {
-    return apiError(
-      502,
-      "media_download_failed",
-      `La descarga devolvió ${res.status}`
-    );
-  }
-  const buf = await res.arrayBuffer();
-  if (buf.byteLength > MAX_MEDIA_BYTES) {
-    return apiError(413, "too_large", "El adjunto excede el límite de 16 MB");
-  }
-  return new Response(buf, {
-    headers: {
-      "content-type":
-        meta.mime_type ??
-        res.headers.get("content-type") ??
-        "application/octet-stream",
-      "cache-control": "no-store",
-    },
-  });
 }
