@@ -31,13 +31,30 @@ describe("MetaApiError.isAuthError", () => {
     );
   });
 
-  it("OAuthException es error de auth", () => {
+  it("OAuthException solo NO basta (Meta la usa en errores transitorios)", () => {
+    // Incidente 2026-08-03: un 500 con type OAuthException (código 2,
+    // "service temporarily unavailable") marcaba el token como vencido y
+    // bloqueaba TODO envío. El type por sí solo jamás decide.
     expect(
       new MetaApiError("x", { status: 400, type: "OAuthException" }).isAuthError
+    ).toBe(false);
+    expect(
+      new MetaApiError("x", { status: 500, code: 2, type: "OAuthException" })
+        .isAuthError
+    ).toBe(false);
+  });
+
+  it("OAuthException con código 190 sí es error de auth", () => {
+    expect(
+      new MetaApiError("x", { status: 400, code: 190, type: "OAuthException" })
+        .isAuthError
     ).toBe(true);
   });
 
-  it("un 500 cualquiera NO es error de auth", () => {
+  it("un 5xx JAMÁS es error de auth, ni con código 190", () => {
     expect(new MetaApiError("x", { status: 500 }).isAuthError).toBe(false);
+    expect(
+      new MetaApiError("x", { status: 500, code: 190 }).isAuthError
+    ).toBe(false);
   });
 });
