@@ -20,7 +20,7 @@ function StatusTicks({ status }: { status: MessageDto["status"] }) {
   if (status === "delivered")
     return <CheckCheck className={cn(cls, "text-text-4")} strokeWidth={1.7} />;
   if (status === "read")
-    return <CheckCheck className={cn(cls, "text-brand")} strokeWidth={1.7} />;
+    return <CheckCheck className={cn(cls, "text-[#53bdeb]")} strokeWidth={1.7} />;
   return <AlertTriangle className={cn(cls, "text-destructive")} strokeWidth={1.7} />;
 }
 
