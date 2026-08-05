@@ -32,41 +32,56 @@ export function TemplatesClient() {
     setTemplates(data.templates);
   }, []);
 
-  useEffect(() => {
-    void refetch();
-  }, [refetch]);
-
-  async function sync() {
-    setSyncing(true);
-    setSyncMsg(null);
-    const res = await fetch("/api/templates/sync", { method: "POST" }).catch(
-      () => null
-    );
-    setSyncing(false);
-    if (res?.ok) {
-      const data = (await res.json()) as { updated: number };
-      setSyncMsg(
-        data.updated > 0
-          ? `${data.updated} plantilla(s) actualizada(s)`
-          : "Todo al día"
+  /**
+   * `silent`: sincronización automática al abrir la pantalla. Meta entrega
+   * `message_template_status_update` al callback A NIVEL APP, que en modo
+   * agencia no es el de esta instancia — sin este pull la plantilla se queda
+   * "Pendiente de Meta" para siempre aunque ya esté aprobada.
+   */
+  const sync = useCallback(
+    async ({ silent = false } = {}) => {
+      if (!silent) {
+        setSyncing(true);
+        setSyncMsg(null);
+      }
+      const res = await fetch("/api/templates/sync", { method: "POST" }).catch(
+        () => null
       );
-      void refetch();
-    } else {
-      const data = (await res?.json().catch(() => null)) as {
-        error?: { message?: string };
-      } | null;
-      setSyncMsg(data?.error?.message ?? "No se pudo sincronizar");
-    }
-  }
+      if (!silent) setSyncing(false);
+      if (res?.ok) {
+        const data = (await res.json()) as { updated: number };
+        if (!silent) {
+          setSyncMsg(
+            data.updated > 0
+              ? `${data.updated} plantilla(s) actualizada(s)`
+              : "Todo al día"
+          );
+        }
+        if (!silent || data.updated > 0) void refetch();
+      } else if (!silent) {
+        // El auto-sync falla en silencio: la lista local ya se pintó.
+        const data = (await res?.json().catch(() => null)) as {
+          error?: { message?: string };
+        } | null;
+        setSyncMsg(data?.error?.message ?? "No se pudo sincronizar");
+      }
+    },
+    [refetch]
+  );
+
+  useEffect(() => {
+    void refetch().then(() => sync({ silent: true }));
+  }, [refetch, sync]);
 
   return (
     <div className="max-w-3xl space-y-6">
       <div className="flex items-start justify-between gap-4">
         <p className="text-sm text-muted-foreground">
           Las plantillas permiten reabrir conversaciones con la ventana de 24 h
-          cerrada. Meta las aprueba en horas o días; el estado se actualiza por
-          webhook y con el botón Sincronizar (imprescindible en modo agencia,
-          donde los eventos de plantillas no llegan al webhook de la instancia).
+          cerrada. Meta las aprueba en horas o días y puede reclasificar la
+          categoría (lo que cambia el costo por conversación). Esta pantalla
+          consulta el estado a Meta cada vez que la abres; Sincronizar fuerza
+          la consulta sin recargar.
         </p>
         <Button variant="outline" size="sm" disabled={syncing} onClick={() => void sync()}>
           <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
@@ -83,7 +98,9 @@ export function TemplatesClient() {
             <div className="flex items-center justify-between gap-3">
               <p className="font-mono text-sm font-medium">
                 {t.name}{" "}
-                <span className="text-muted-foreground">({t.language})</span>
+                <span className="text-muted-foreground">
+                  ({t.language} · {t.category})
+                </span>
               </p>
               <Badge variant={STATUS_BADGE[t.status].variant}>
                 {STATUS_BADGE[t.status].label}
