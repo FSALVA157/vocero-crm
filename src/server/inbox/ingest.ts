@@ -445,6 +445,8 @@ export function serializeMessage(
     type: m.type,
     text: m.text,
     status: m.status,
+    /** Motivo del fallo, ya traducido a algo accionable (`describeSendError`). */
+    error: m.error,
     aiGenerated: m.aiGenerated,
     origin: m.origin,
     media: media

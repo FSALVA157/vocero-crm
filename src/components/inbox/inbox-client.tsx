@@ -95,11 +95,17 @@ export function InboxClient() {
       // Un entrante nuevo puede crear/mover el lead: refresca el panel.
       setDetailRev((v) => v + 1);
     },
-    onMessageStatus: ({ conversationId, messageId, status }) => {
+    onMessageStatus: ({ conversationId, messageId, status, error }) => {
       if (selectedIdRef.current !== conversationId) return;
       setMessages((prev) =>
         prev.map((m) =>
-          m.id === messageId ? { ...m, status: status as MessageDto["status"] } : m
+          m.id === messageId
+            ? {
+                ...m,
+                status: status as MessageDto["status"],
+                error: error ?? null,
+              }
+            : m
         )
       );
     },

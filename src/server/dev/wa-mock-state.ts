@@ -11,6 +11,11 @@ export type OutboxEntry = {
   type: string;
   body: unknown;
   at: string;
+  /**
+   * Id que se le devolvió al CRM. Lo expone el outbox para que un self-test
+   * pueda mandarle un webhook de estado a ESE mensaje sin adivinar el formato.
+   */
+  waMessageId?: string;
 };
 
 export type MockTemplate = {
@@ -43,4 +48,16 @@ export function resetWaMockState(): void {
 
 export function nextN(): number {
   return ++getWaMockState().counter;
+}
+
+/**
+ * Sello único por arranque del proceso. Sin él, el contador del mock reinicia
+ * al reiniciar `pnpm dev` y vuelve a emitir `wamid.mock.out.1`, que choca con
+ * el UNIQUE de `wa_message_id` en la BD de una corrida anterior (500 al
+ * enviar). No es un fallo del producto: la idempotencia hace su trabajo.
+ */
+const boot = Math.random().toString(36).slice(2, 8);
+
+export function nextOutboundWamid(): string {
+  return `wamid.mock.out.${boot}.${nextN()}`;
 }
