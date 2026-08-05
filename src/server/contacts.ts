@@ -2,12 +2,16 @@ import { eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { scoped } from "@/lib/db/tenant";
 
-export function serializeContact(c: typeof schema.contact.$inferSelect) {
+export function serializeContact(
+  c: typeof schema.contact.$inferSelect,
+  stageName: string | null = null
+) {
   return {
     id: c.id,
     name: c.name,
     phone: c.phone,
     notes: c.notes,
+    stageName,
     archivedAt: c.archivedAt?.toISOString() ?? null,
   };
 }

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { Search, Sparkles, UserRound } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Search, Sparkles, UserRound, X } from "lucide-react";
 import type { ConversationDto } from "@/lib/types";
+import { matchesQuery } from "@/lib/search";
 import { cn } from "@/lib/utils";
 import { ContactAvatar } from "@/components/avatar";
 import { Button } from "@/components/ui/button";
@@ -65,21 +66,49 @@ export function ConversationList({
 }) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<"all" | "unread">("all");
+  const [stage, setStage] = useState<string>("all");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  /**
+   * Rescate de lo tecleado ANTES de que hidratara el JS. La caja se pinta en
+   * el HTML del servidor, así que se puede escribir en ella mientras carga la
+   * página; al montar, React la dejaba vacía y esas pulsaciones se perdían en
+   * silencio (el usuario veía la lista entera "sin filtrar"). Por eso el input
+   * es NO controlado: el DOM manda y aquí solo adoptamos su valor.
+   */
+  useEffect(() => {
+    const typed = inputRef.current?.value ?? "";
+    if (typed) setQuery(typed);
+  }, []);
 
   const loading = conversationsProp === null;
   const conversations = conversationsProp ?? [];
-  const q = query.trim().toLowerCase();
-  const searched = q
-    ? conversations.filter(
-        (c) =>
-          c.contact.name.toLowerCase().includes(q) ||
-          (c.contact.phone ?? "").includes(q) ||
-          (c.preview ?? "").toLowerCase().includes(q)
-      )
-    : conversations;
+  // Solo NOMBRE y TELÉFONO, como cualquier filtro de contactos. Antes también
+  // miraba el preview, y como el agente nombra al dueño en sus propios
+  // mensajes, buscar ese nombre devolvía media bandeja. Encima era una
+  // búsqueda de mensajes a medias: solo el último de cada hilo, no el historial.
+  const searched = conversations.filter(
+    (c) =>
+      matchesQuery(query, {
+        text: [c.contact.name],
+        phone: c.contact.phone,
+      }) && (stage === "all" || c.stageName === stage)
+  );
   const unreadCount = searched.filter((c) => c.unreadCount > 0).length;
   const visible =
     filter === "unread" ? searched.filter((c) => c.unreadCount > 0) : searched;
+
+  // Etapas presentes en la bandeja, en el orden en que llegan del pipeline.
+  const stages: string[] = [];
+  for (const c of conversations) {
+    if (c.stageName && !stages.includes(c.stageName)) stages.push(c.stageName);
+  }
+
+  function clearQuery() {
+    if (inputRef.current) inputRef.current.value = "";
+    setQuery("");
+    inputRef.current?.focus();
+  }
 
   return (
     <div className="flex h-full flex-col">
@@ -91,15 +120,26 @@ export function ConversationList({
         <div className="flex items-center gap-2 rounded-md border bg-secondary px-3 py-[7px] transition-colors focus-within:border-brand focus-within:bg-background focus-within:ring-[3px] focus-within:ring-brand-soft">
           <Search className="h-4 w-4 shrink-0 text-text-3" strokeWidth={1.7} />
           <input
-            placeholder="Buscar conversación…"
-            value={query}
+            ref={inputRef}
+            placeholder="Buscar por nombre o teléfono…"
+            aria-label="Buscar conversación"
+            defaultValue=""
             onChange={(e) => setQuery(e.target.value)}
             className="w-full bg-transparent text-[13px] outline-none placeholder:text-text-3"
           />
+          {query && (
+            <button
+              onClick={clearQuery}
+              aria-label="Limpiar búsqueda"
+              className="shrink-0 rounded-full p-0.5 text-text-3 hover:bg-accent hover:text-foreground"
+            >
+              <X className="h-3.5 w-3.5" strokeWidth={2} />
+            </button>
+          )}
         </div>
       </header>
 
-      <div className="flex gap-1.5 border-b px-4 py-2.5">
+      <div className="flex items-center gap-1.5 border-b px-4 py-2.5">
         {(
           [
             { id: "all", label: "Todas", count: searched.length },
@@ -110,7 +150,7 @@ export function ConversationList({
             key={f.id}
             onClick={() => setFilter(f.id)}
             className={cn(
-              "flex items-center gap-1.5 rounded-full border px-3 py-[5px] text-[12.5px] font-medium transition-colors",
+              "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-[5px] text-[12.5px] font-medium transition-colors",
               filter === f.id
                 ? "border-brand bg-brand text-white"
                 : "bg-background text-text-2 hover:bg-accent"
@@ -127,6 +167,27 @@ export function ConversationList({
             </span>
           </button>
         ))}
+
+        {stages.length > 0 && (
+          <select
+            value={stage}
+            onChange={(e) => setStage(e.target.value)}
+            aria-label="Filtrar por etapa del embudo"
+            className={cn(
+              "ml-auto min-w-0 max-w-[42%] truncate rounded-full border px-2 py-[5px] text-[12.5px] font-medium transition-colors",
+              stage === "all"
+                ? "bg-background text-text-2 hover:bg-accent"
+                : "border-brand bg-brand text-white"
+            )}
+          >
+            <option value="all">Toda etapa</option>
+            {stages.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto">
