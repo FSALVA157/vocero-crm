@@ -30,12 +30,12 @@ const req = ctx.request;
 console.log("== Setup ==");
 let r = await req.post(`${BASE}/api/auth/sign-up/email`, {
   headers: { origin: BASE },
-  data: { email: "e2e@aishia.test", password: "password-e2e-123", name: "Kevin E2E" },
+  data: { email: "e2e@vocero.test", password: "password-e2e-123", name: "Operador E2E" },
 });
 if (!r.ok())
   r = await req.post(`${BASE}/api/auth/sign-in/email`, {
     headers: { origin: BASE },
-    data: { email: "e2e@aishia.test", password: "password-e2e-123" },
+    data: { email: "e2e@vocero.test", password: "password-e2e-123" },
   });
 ok("login", r.ok());
 await req.put(`${BASE}/api/settings/whatsapp`, {
@@ -98,7 +98,10 @@ ok("fragmento de teléfono con espacios", has(list, `Zoraida${S}`), JSON.stringi
 list = await search(`462-${SUF.slice(0,3)}-${SUF.slice(3)}`);
 ok("teléfono con guiones", has(list, `Zoraida${S}`), JSON.stringify(list));
 list = await search("vi su anuncio");
-ok("busca también dentro del último mensaje", has(list, `Zoraida${S}`), JSON.stringify(list));
+ok("NO busca dentro de los mensajes (el nombre del dueño los inunda)",
+   !has(list, `Zoraida${S}`), JSON.stringify(list));
+list = await search(`Zoraida${S} Belier`);
+ok("nombre completo, con espacio, coincide", has(list, `Zoraida${S}`), JSON.stringify(list.length));
 list = await search(`zzz-no-existe-${S}`);
 ok("sin coincidencias → lista vacía", list.length === 0, JSON.stringify(list));
 list = await search("46");

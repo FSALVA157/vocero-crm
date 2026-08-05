@@ -24,7 +24,11 @@ al montar se adopta lo que ya haya en el DOM.
 3. Teléfono **como se ve en pantalla**: `+52 462 555 0101`, `462 555`,
    `462-555-0101`.
    ✅ Coinciden — la comparación es por dígitos (la BD guarda `524625550101`).
-4. `vi su anuncio` (texto del último mensaje) → coincide.
+4. `vi su anuncio` (texto del último mensaje) → **no** coincide.
+   ✅ El buscador mira nombre y teléfono, nada más. Incluir el preview hacía
+   que buscar el nombre del dueño devolviera 17 de 32 chats, porque el agente
+   lo escribe en sus propios mensajes. Y era una búsqueda de mensajes a
+   medias: solo el último de cada hilo.
 5. `zzz-no-existe` → lista vacía; el botón ✕ limpia y devuelve todo.
 6. `46` (dos dígitos) **no** empareja teléfonos.
    ✅ Mínimo 3 dígitos: si no, un dígito suelto barre el directorio.

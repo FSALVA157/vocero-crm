@@ -83,10 +83,14 @@ export function ConversationList({
 
   const loading = conversationsProp === null;
   const conversations = conversationsProp ?? [];
+  // Solo NOMBRE y TELÉFONO, como cualquier filtro de contactos. Antes también
+  // miraba el preview, y como el agente nombra al dueño en sus propios
+  // mensajes, buscar ese nombre devolvía media bandeja. Encima era una
+  // búsqueda de mensajes a medias: solo el último de cada hilo, no el historial.
   const searched = conversations.filter(
     (c) =>
       matchesQuery(query, {
-        text: [c.contact.name, c.preview, c.stageName],
+        text: [c.contact.name],
         phone: c.contact.phone,
       }) && (stage === "all" || c.stageName === stage)
   );
@@ -117,7 +121,7 @@ export function ConversationList({
           <Search className="h-4 w-4 shrink-0 text-text-3" strokeWidth={1.7} />
           <input
             ref={inputRef}
-            placeholder="Buscar nombre, teléfono o mensaje…"
+            placeholder="Buscar por nombre o teléfono…"
             aria-label="Buscar conversación"
             defaultValue=""
             onChange={(e) => setQuery(e.target.value)}

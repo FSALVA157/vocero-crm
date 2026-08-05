@@ -15,9 +15,12 @@ describe("digitsOnly", () => {
   });
 });
 
-describe("matchesQuery (bug reportado 2026-08-05)", () => {
+describe("matchesQuery (bug reportado en producción)", () => {
+  // La Bandeja pasa SOLO el nombre: incluir el último mensaje hacía que
+  // buscar el nombre del dueño devolviera media bandeja (el agente lo escribe
+  // en sus propios mensajes).
   const kevin = {
-    text: ["Kevin Belier 🐏", "Hola kevin 👋", "Sesión agendada"],
+    text: ["Kevin Belier Sesión 🐏"],
     phone: "524621349768",
   };
 
@@ -47,6 +50,12 @@ describe("matchesQuery (bug reportado 2026-08-05)", () => {
   it("no empareja con quien no es", () => {
     expect(matchesQuery("Diego", kevin)).toBe(false);
     expect(matchesQuery("5559999999", kevin)).toBe(false);
+  });
+
+  it("no mira campos que no se le pasan (el mensaje ya no cuenta)", () => {
+    const leonardo = { text: ["Leonardo García"], phone: "528999129209" };
+    // Su último mensaje nombra a Kevin, pero el preview ya no viaja aquí.
+    expect(matchesQuery("Kevin", leonardo)).toBe(false);
   });
 
   it("uno o dos dígitos sueltos no barren el directorio", () => {
