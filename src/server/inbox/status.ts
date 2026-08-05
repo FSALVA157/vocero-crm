@@ -1,5 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
+import { describeSendError } from "@/lib/meta/send-errors";
 import { publish } from "@/server/events/bus";
 import type { WebhookStatus } from "@/server/inbox/webhook";
 
@@ -47,11 +48,10 @@ export async function applyStatusUpdate(
   if (!msg) return;
   if (!isUpgrade(msg.status, next)) return;
 
+  const failure = status.errors?.[0];
   const error =
     next === "failed"
-      ? (status.errors?.[0]?.message ??
-        status.errors?.[0]?.title ??
-        "Envío fallido")
+      ? describeSendError(failure?.code, failure?.message ?? failure?.title)
       : null;
 
   await db
@@ -65,6 +65,8 @@ export async function applyStatusUpdate(
       conversationId: msg.conversationId,
       messageId: msg.id,
       status: next,
+      // Sin esto el operador ve el triángulo de fallo pero nunca el motivo.
+      error,
     },
   });
 }

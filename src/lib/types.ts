@@ -42,6 +42,8 @@ export type MessageDto = {
   type: string;
   text: string | null;
   status: "pending" | "sent" | "delivered" | "read" | "failed";
+  /** Motivo del fallo en lenguaje llano cuando status = "failed". */
+  error: string | null;
   aiGenerated: boolean;
   /** 008 — Origen del saliente (en entrantes viene 'operator' y se ignora). */
   origin: "ai" | "operator" | "manual" | "template";

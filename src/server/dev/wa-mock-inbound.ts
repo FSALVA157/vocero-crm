@@ -175,6 +175,9 @@ export function buildStatusPayload(input: {
   waMessageId: string;
   status: string;
   recipientId?: string;
+  /** Meta adjunta `errors[]` en los `failed` (ej. 130472 del 2026-08-05). */
+  errorCode?: number;
+  errorMessage?: string;
 }) {
   return {
     object: "whatsapp_business_account",
@@ -196,6 +199,17 @@ export function buildStatusPayload(input: {
                   status: input.status,
                   timestamp: String(Math.floor(Date.now() / 1000)),
                   recipient_id: input.recipientId ?? "5215511111111",
+                  ...(input.errorCode != null
+                    ? {
+                        errors: [
+                          {
+                            code: input.errorCode,
+                            title: input.errorMessage ?? "Error de envío",
+                            message: input.errorMessage ?? "Error de envío",
+                          },
+                        ],
+                      }
+                    : {}),
                 },
               ],
             },

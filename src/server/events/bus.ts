@@ -10,7 +10,13 @@ export type SseEvent =
   | { type: "message.new"; data: { conversationId: string; message: unknown } }
   | {
       type: "message.status";
-      data: { conversationId: string; messageId: string; status: string };
+      data: {
+        conversationId: string;
+        messageId: string;
+        status: string;
+        /** Motivo del fallo, presente solo cuando status = "failed". */
+        error?: string | null;
+      };
     }
   | { type: "conversation.updated"; data: { conversation: unknown } }
   | {

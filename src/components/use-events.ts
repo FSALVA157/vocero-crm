@@ -8,6 +8,8 @@ export type EventHandlers = {
     conversationId: string;
     messageId: string;
     status: string;
+    /** Motivo, presente solo cuando status = "failed". */
+    error?: string | null;
   }) => void;
   onConversationUpdated?: (data: { conversation: unknown }) => void;
   onLabRun?: (data: {

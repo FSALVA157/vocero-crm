@@ -2,6 +2,7 @@ import { mockGuard } from "@/lib/dev-guard";
 import {
   getWaMockState,
   nextN,
+  nextOutboundWamid,
   type MockTemplate,
 } from "@/server/dev/wa-mock-state";
 
@@ -117,8 +118,10 @@ export async function POST(req: Request, ctx: Params) {
   if (path.length === 2 && path[1] === "messages") {
     const state = getWaMockState();
     const n = nextN();
+    const waMessageId = nextOutboundWamid();
     state.outbox.push({
       n,
+      waMessageId,
       phoneNumberId: path[0]!,
       to: String(body.to ?? ""),
       type: String(body.type ?? "text"),
@@ -128,7 +131,7 @@ export async function POST(req: Request, ctx: Params) {
     return Response.json({
       messaging_product: "whatsapp",
       contacts: [{ input: body.to, wa_id: body.to }],
-      messages: [{ id: `wamid.mock.out.${n}` }],
+      messages: [{ id: waMessageId }],
     });
   }
 
