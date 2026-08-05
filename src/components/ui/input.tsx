@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 export function Input({
   className,
   ...props
-}: React.InputHTMLAttributes<HTMLInputElement>) {
+}: React.ComponentPropsWithRef<"input">) {
   return (
     <input
       className={cn(
