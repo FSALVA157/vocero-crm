@@ -197,7 +197,7 @@ export async function syncTemplates(organizationId: string): Promise<number> {
   }
 
   let data: {
-    data?: { id?: string; name?: string; language?: string; status?: string; quality_score?: unknown; rejected_reason?: string }[];
+    data?: { id?: string; name?: string; language?: string; status?: string; category?: string; quality_score?: unknown; rejected_reason?: string }[];
   };
   try {
     data = await graphRequest(`${creds.wabaId}/message_templates`, {
@@ -229,11 +229,16 @@ export async function syncTemplates(organizationId: string): Promise<number> {
         (remote.id && t.waTemplateId === remote.id) ||
         (t.name === remote.name && t.language === remote.language)
     );
-    if (!match || match.status === status) continue;
+    if (!match) continue;
+    // Meta reclasifica la categoría al aprobar (una UTILITY puede volverse
+    // MARKETING, lo que cambia el costo por conversación): es autoridad.
+    const category = remote.category ?? match.category;
+    if (match.status === status && match.category === category) continue;
     await db
       .update(schema.template)
       .set({
         status,
+        category,
         rejectionReason: remote.rejected_reason ?? null,
         waTemplateId: match.waTemplateId ?? remote.id ?? null,
         updatedAt: new Date(),
