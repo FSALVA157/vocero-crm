@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { requireBotKey } from "@/server/bot/auth";
 import { mergeFicha, normalizeFicha } from "@/server/bot/ficha";
+import { toHandoffReason } from "@/server/bot/handoff";
 import { resetRateLimit } from "@/lib/rate-limit";
 
 /** La puerta de toda la superficie `/api/bot/*`. */
@@ -89,6 +90,27 @@ describe("normalizeFicha (tolerante al drift del LLM)", () => {
     const raw: Record<string, string> = {};
     for (let i = 0; i < 200; i++) raw[`campo${i}`] = "v";
     expect(Object.keys(normalizeFicha(raw)).length).toBe(40);
+  });
+});
+
+describe("toHandoffReason (el handoff nunca se pierde por el motivo)", () => {
+  it("los motivos del catálogo pasan tal cual", () => {
+    for (const r of ["cliente", "modelo", "error", "ventana", "hostilidad"]) {
+      expect(toHandoffReason(r)).toBe(r);
+    }
+  });
+
+  it("un motivo inventado por el LLM cae a 'modelo' en vez de tirar el handoff", () => {
+    expect(toHandoffReason("porque el señor se enojó")).toBe("modelo");
+  });
+
+  it("ausente o vacío también cae a 'modelo'", () => {
+    expect(toHandoffReason(undefined)).toBe("modelo");
+    expect(toHandoffReason("   ")).toBe("modelo");
+  });
+
+  it("tolera mayúsculas y espacios de sobra", () => {
+    expect(toHandoffReason("  Hostilidad ")).toBe("hostilidad");
   });
 });
 

@@ -451,6 +451,106 @@ async function main() {
   });
   ok("texto vacío → 422 (no se manda un mensaje en blanco)", sendVacio.res.status === 422);
 
+  console.log("\n== us-bot-api: el bot pide un humano ==");
+  const hoNoKey = await api("/api/bot/handoff", {
+    method: "POST",
+    body: JSON.stringify({ conversationId: convId, reason: "cliente" }),
+  });
+  ok("handoff sin API key → 401", hoNoKey.res.status === 401);
+
+  const ho = await bot("/api/bot/handoff", {
+    method: "POST",
+    body: JSON.stringify({ conversationId: convId, reason: "hostilidad" }),
+  });
+  ok("POST /api/bot/handoff → 200", ho.res.ok && ho.json?.ok === true);
+  await sleep(300);
+  let convTrasHandoff = ((await api("/api/conversations")).json?.conversations ?? [])
+    .find((c) => c.id === convId);
+  ok(
+    "la conversación queda pausada y con su motivo",
+    convTrasHandoff?.aiEnabled === false &&
+      !!convTrasHandoff?.handoffAt &&
+      convTrasHandoff?.handoffReason === "hostilidad",
+    JSON.stringify({
+      aiEnabled: convTrasHandoff?.aiEnabled,
+      reason: convTrasHandoff?.handoffReason,
+    })
+  );
+  const primerHandoffAt = convTrasHandoff?.handoffAt;
+
+  const hoRepe = await bot("/api/bot/handoff", {
+    method: "POST",
+    body: JSON.stringify({ conversationId: convId, reason: "cliente" }),
+  });
+  await sleep(300);
+  convTrasHandoff = ((await api("/api/conversations")).json?.conversations ?? [])
+    .find((c) => c.id === convId);
+  ok(
+    "repetir el handoff es idempotente: no pisa la hora ni el motivo original",
+    hoRepe.res.ok &&
+      convTrasHandoff?.handoffAt === primerHandoffAt &&
+      convTrasHandoff?.handoffReason === "hostilidad",
+    JSON.stringify({
+      antes: primerHandoffAt,
+      ahora: convTrasHandoff?.handoffAt,
+      reason: convTrasHandoff?.handoffReason,
+    })
+  );
+
+  const hoNoConv = await bot("/api/bot/handoff", {
+    method: "POST",
+    body: JSON.stringify({ conversationId: "cv_no_existe", reason: "cliente" }),
+  });
+  ok("handoff de conversación inexistente → 404", hoNoConv.res.status === 404);
+
+  // El handoff jamás debe perderse por un motivo que no esté en el catálogo:
+  // el bot se quedaría hablándole a alguien que pidió un humano.
+  await bot("/api/bot/reset", {
+    method: "POST",
+    body: JSON.stringify({ conversationId: convId }),
+  });
+  await sleep(300);
+  const hoRaro = await bot("/api/bot/handoff", {
+    method: "POST",
+    body: JSON.stringify({ conversationId: convId, reason: "porque sí" }),
+  });
+  await sleep(300);
+  convTrasHandoff = ((await api("/api/conversations")).json?.conversations ?? [])
+    .find((c) => c.id === convId);
+  ok(
+    "un motivo fuera del catálogo NO tira el handoff (cae a 'modelo')",
+    hoRaro.res.ok &&
+      convTrasHandoff?.aiEnabled === false &&
+      convTrasHandoff?.handoffReason === "modelo",
+    JSON.stringify({
+      status: hoRaro.res.status,
+      reason: convTrasHandoff?.handoffReason,
+    })
+  );
+
+  await bot("/api/bot/reset", {
+    method: "POST",
+    body: JSON.stringify({ conversationId: convId }),
+  });
+  await sleep(300);
+  const hoSinReason = await bot("/api/bot/handoff", {
+    method: "POST",
+    body: JSON.stringify({ conversationId: convId }),
+  });
+  await sleep(300);
+  convTrasHandoff = ((await api("/api/conversations")).json?.conversations ?? [])
+    .find((c) => c.id === convId);
+  ok(
+    "sin motivo también pausa (cae a 'modelo')",
+    hoSinReason.res.ok && convTrasHandoff?.handoffReason === "modelo",
+    JSON.stringify(convTrasHandoff?.handoffReason)
+  );
+  await bot("/api/bot/reset", {
+    method: "POST",
+    body: JSON.stringify({ conversationId: convId }),
+  });
+  await sleep(300);
+
   console.log("\n== us-bot-api: IA pausada y reset ==");
   const pause = await api(`/api/conversations/${convId}`, {
     method: "PATCH",
