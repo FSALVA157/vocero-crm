@@ -44,9 +44,30 @@ agente in-process de Vocero puede quedar apagado.
     no borra auditoría.
 13. `POST /api/bot/reset` sin key → **401**.
 
+## Perfil del agente y knowledge base
+
+El bot externo no adivina el negocio: lo lee de las mismas dos pantallas que
+edita el dueño (Agente y su knowledge base). Este endpoint es el contrato.
+
+14. `GET /api/bot/profile` con la key → **200** con la forma exacta
+    `{profile: {name, tone, instructions, escalationRules, greeting}, kb, resources}`.
+    Los cinco campos del perfil coinciden con lo guardado en la pantalla Agente;
+    los opcionales vacíos viajan como `null`, no como cadena vacía.
+15. `kb` es el knowledge base ya renderizado (`P:`/`R:` para las preguntas,
+    los bloques tal cual, en el orden de la pantalla). Con el KB vacío viaja
+    la cadena canónica `(knowledge base vacío)`, no `null`: el bot puede
+    inyectarla en su prompt sin ramificar.
+16. `profile.enabled` NO viene, ni con la IA in-process encendida ni apagada:
+    ese flag gobierna el agente de Vocero, no al cerebro externo, que se pausa
+    por conversación (`aiEnabled` y los handoffs).
+17. Editar el tono en la pantalla Agente y volver a pedir el perfil → el cambio
+    ya está: la respuesta no se cachea.
+
 ## Camino infeliz
 
-14. `POST /api/bot/typing` con un `conversationId` inexistente → **404**.
-15. Con Meta caído (token `...-invalid` en el mock), typing → **200**
+18. `GET /api/bot/profile` en una instancia sin perfil de agente → **404**
+    `no_profile` (condición esperada, no un 500: el bot cae a su brief local).
+19. `POST /api/bot/typing` con un `conversationId` inexistente → **404**.
+20. Con Meta caído (token `...-invalid` en el mock), typing → **200**
     `{ok:false, reason:"meta_error"}`: es best-effort por contrato, al bot
     jamás le vale reintentarlo.
