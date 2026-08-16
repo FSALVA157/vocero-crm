@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { PanelRight } from "lucide-react";
+import { ChevronLeft, PanelRight } from "lucide-react";
 import { cn, formatPhone } from "@/lib/utils";
 import { ContactAvatar } from "@/components/avatar";
 import type { ConversationDto, MessageDto } from "@/lib/types";
@@ -12,23 +12,40 @@ import { MessageThread } from "./message-thread";
 import { Composer } from "./composer";
 import { ContactPanel } from "./contact-panel";
 
+/**
+ * `xl` es el umbral donde caben las tres columnas (lista + hilo + detalles).
+ * Debajo, el panel de detalles flota sobre el hilo. Debe coincidir con el
+ * breakpoint `xl:` que usan las clases de la sección de detalles.
+ */
+const PANEL_MEDIA_QUERY = "(min-width: 1280px)";
+const isWideEnoughForPanel = () =>
+  typeof window !== "undefined" && window.matchMedia(PANEL_MEDIA_QUERY).matches;
+
 export function InboxClient() {
   const [conversations, setConversations] = useState<ConversationDto[] | null>(
     null
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messages, setMessages] = useState<MessageDto[]>([]);
-  const [panelOpen, setPanelOpen] = useState(true);
+  // Arranca cerrado: en pantallas angostas el panel de detalles es un cajón
+  // ENCIMA del hilo, así que abrirlo por defecto taparía la conversación. El
+  // efecto de abajo lo abre solo si de veras hay tres columnas de ancho.
+  const [panelOpen, setPanelOpen] = useState(false);
   // Se incrementa con cada evento SSE que puede cambiar la etapa/lead o el
   // estado del agente: el panel de detalles lo observa y refetch en vivo.
   const [detailRev, setDetailRev] = useState(0);
 
   useEffect(() => {
+    if (!isWideEnoughForPanel()) return;
     setPanelOpen(localStorage.getItem("vocero.panelOpen") !== "false");
   }, []);
   const togglePanel = useCallback((open: boolean) => {
     setPanelOpen(open);
-    localStorage.setItem("vocero.panelOpen", String(open));
+    // La preferencia es de escritorio: abrir el cajón en el teléfono no debe
+    // reescribir cómo queda la Bandeja en la computadora.
+    if (isWideEnoughForPanel()) {
+      localStorage.setItem("vocero.panelOpen", String(open));
+    }
   }, []);
   const selectedIdRef = useRef<string | null>(null);
   selectedIdRef.current = selectedId;
@@ -164,7 +181,14 @@ export function InboxClient() {
 
   return (
     <div className="flex h-full">
-      <section className="w-[360px] shrink-0 overflow-hidden border-r">
+      {/* Móvil: una columna a la vez. La lista cede la pantalla completa al
+          hilo en cuanto hay conversación elegida (patrón maestro-detalle). */}
+      <section
+        className={cn(
+          "w-full shrink-0 overflow-hidden border-r md:w-[300px] lg:w-[360px]",
+          selected && "max-md:hidden"
+        )}
+      >
         <ConversationList
           conversations={conversations}
           selectedId={selectedId}
@@ -173,18 +197,31 @@ export function InboxClient() {
         />
       </section>
 
-      <section className="flex min-w-0 flex-1 flex-col">
+      <section
+        className={cn(
+          "flex min-w-0 flex-1 flex-col",
+          !selected && "max-md:hidden"
+        )}
+      >
         {selected ? (
           <>
-            <header className="flex items-center justify-between border-b bg-background px-4 py-2.5">
-              <div className="flex items-center gap-3">
+            <header className="flex items-center justify-between gap-1 border-b bg-background px-2 py-2.5 md:px-4">
+              {/* Volver a la lista: en móvil el hilo ocupa toda la pantalla. */}
+              <button
+                onClick={() => setSelectedId(null)}
+                aria-label="Volver a las conversaciones"
+                className="shrink-0 rounded-md p-1.5 text-text-2 hover:bg-accent hover:text-foreground md:hidden"
+              >
+                <ChevronLeft className="h-5 w-5" strokeWidth={1.8} />
+              </button>
+              <div className="flex min-w-0 flex-1 items-center gap-3 p-1">
                 <ContactAvatar
                   name={selected.contact.name}
                   seed={selected.contact.id}
                   size="md"
                 />
-                <div>
-                  <p className="text-[15px] font-[650] leading-tight">
+                <div className="min-w-0">
+                  <p className="truncate text-[15px] font-[650] leading-tight">
                     {selected.contact.name}
                   </p>
                   <p
@@ -204,7 +241,7 @@ export function InboxClient() {
                 <button
                   onClick={() => togglePanel(true)}
                   aria-label="Mostrar detalles"
-                  className="rounded-sm border p-1.5 text-text-3 hover:bg-accent hover:text-foreground"
+                  className="shrink-0 rounded-sm border p-1.5 text-text-3 hover:bg-accent hover:text-foreground"
                 >
                   <PanelRight className="h-4 w-4" strokeWidth={1.7} />
                 </button>
@@ -228,14 +265,29 @@ export function InboxClient() {
         )}
       </section>
 
+      {/* Velo del cajón de detalles (solo donde no caben tres columnas). */}
+      {panelOpen && selected && (
+        <button
+          aria-label="Cerrar los detalles"
+          tabIndex={-1}
+          onClick={() => togglePanel(false)}
+          className="fixed inset-0 z-30 bg-overlay xl:hidden"
+        />
+      )}
+
       <section
         className={cn(
           "shrink-0 overflow-hidden border-l transition-[width] duration-[220ms]",
-          panelOpen && selected ? "w-[320px]" : "w-0 border-l-0"
+          // Debajo de xl no hay ancho para una tercera columna: el panel se
+          // vuelve un cajón que entra desde la derecha, encima del hilo.
+          "max-xl:fixed max-xl:inset-y-0 max-xl:right-0 max-xl:z-40 max-xl:w-auto max-xl:bg-background max-xl:transition-transform",
+          panelOpen && selected
+            ? "w-[320px] max-xl:translate-x-0 max-xl:shadow-pop"
+            : "w-0 border-l-0 max-xl:translate-x-full"
         )}
       >
         {selected && (
-          <div className="h-full w-[320px]">
+          <div className="h-full w-[320px] max-xl:w-[min(320px,88vw)]">
             <ContactPanel
               conversation={selected}
               refreshKey={detailRev}
