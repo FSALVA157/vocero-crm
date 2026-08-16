@@ -98,9 +98,10 @@ Agente de referencia: [nea-agent](https://github.com/kevinrivm/nea-agent), MIT.
 
 ### 📄 Plantillas · 👥 Multi-usuario · 🔐 Self-hosted
 
-Plantillas con una variable y aprobación de Meta sincronizada; cuentas de
-equipo creadas por el propietario (el registro público se cierra tras la
-primera organización); token de WhatsApp cifrado en reposo (AES-256-GCM),
+Plantillas con varias variables `{{1}}…{{n}}` y aprobación de Meta
+sincronizada; cuentas de equipo creadas por el propietario (el registro público
+se cierra tras la primera organización); token de WhatsApp cifrado en reposo
+(AES-256-GCM),
 webhook autenticado en dos capas y cero dependencias de runtime más allá de
 Meta y tu proveedor LLM opcional.
 
@@ -295,7 +296,7 @@ base64 (44 caracteres): `openssl rand -base64 32`.
 - Multimedia completa en la bandeja (hoy: indicador de tipo).
 - RAG para knowledge bases grandes (hoy: se inyecta completo con aviso de tamaño).
 - Personas configurables del Laboratorio y comparativas entre corridas.
-- Variables múltiples y borrado de plantillas.
+- Borrado de plantillas desde la app.
 - Analytics de conversación y plantillas.
 - Broadcast con opt-in verificado.
 
