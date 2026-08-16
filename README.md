@@ -8,6 +8,10 @@ de tu negocio y un **Laboratorio** donde clientes simulados lo evalúan antes de
 que hable con clientes reales. Una instancia = un negocio, en tu propio
 servidor, con tus datos.
 
+¿Ya tienes tu propio agente? Puedes apagar el de Vocero y conectar el tuyo por
+la [API de servicio `/api/bot/*`](#-trae-tu-propio-agente): el token de WhatsApp
+nunca sale del CRM.
+
 ![Bandeja de Vocero CRM](docs/screenshots/bandeja.png)
 
 <p align="center">
@@ -66,6 +70,31 @@ en pares pregunta/respuesta y bloques libres. Responde SOLO con lo que sabe,
 agrupa ráfagas de mensajes en una respuesta, escala a humano cuando el cliente
 lo pide (con detección de respaldo), cuando él lo decide o cuando algo falla.
 Proveedor LLM por adaptador OpenRouter-compatible: usa el modelo que quieras.
+
+### 🔌 Trae tu propio agente
+
+Si prefieres conducir la conversación con tu propio cerebro —un microservicio
+tuyo, en tu mismo servidor— apaga el agente de Vocero y habilita la API de
+servicio con una `BOT_API_KEY`. Tu bot conversa a través del CRM, así que **el
+token de WhatsApp nunca sale de aquí** y todo queda en la bandeja como
+cualquier otra conversación.
+
+| Endpoint | Para qué |
+|---|---|
+| `GET /api/bot/context` | Quién es la persona, su etapa, si un humano tomó la conversación y si la ventana de 24 h sigue abierta |
+| `POST /api/bot/messages` | Responder. Sale por el mismo camino que el composer y queda marcado como IA |
+| `GET /api/bot/profile` | El perfil del agente y el knowledge base que editaste en la app |
+| `PUT /api/bot/ficha` | Guardar lo que tu bot descubre del lead (claves libres: cada negocio califica distinto) |
+| `POST /api/bot/handoff` | Devolver la conversación a un humano |
+| `POST /api/bot/typing` | Marcar leído y mostrar "escribiendo…" |
+| `GET /api/bot/media/{id}` | Descargar un adjunto entrante sin tocar Meta |
+| `POST /api/bot/reset` | Reiniciar una conversación de pruebas |
+
+Los 409 vienen tipados (`ai_paused`, `window_closed`, `sandbox_violation`) para
+que tu bot sepa si callarse, mandar plantilla o rendirse. El guion de pruebas
+está en [`tests/e2e/us-bot-api.md`](tests/e2e/us-bot-api.md).
+
+Agente de referencia: [nea-agent](https://github.com/kevinrivm/nea-agent), MIT.
 
 ### 📄 Plantillas · 👥 Multi-usuario · 🔐 Self-hosted
 
@@ -269,6 +298,19 @@ base64 (44 caracteres): `openssl rand -base64 32`.
 - Variables múltiples y borrado de plantillas.
 - Analytics de conversación y plantillas.
 - Broadcast con opt-in verificado.
+
+### Fuera de alcance a propósito
+
+**Motor de agendamiento** (horarios de atención, huecos, reservas). Son unas
+mil líneas, dos tablas y una dependencia de fechas dentro de un proyecto cuyo
+argumento es ser ligero; y el estado de qué huecos se ofrecieron pertenece a la
+conversación, o sea al agente, no al CRM. Si tu bot agenda, el contrato que
+esperan `/api/bot/availability` y `/api/bot/bookings` está documentado en el
+[issue #8](https://github.com/kevinrivm/vocero-crm/issues/8) para que lo
+implementes donde te convenga.
+
+Si viste algún video donde digo que Vocero trae el motor de agendamiento: me
+adelanté, y esta es la aclaración.
 
 ## Stack
 
