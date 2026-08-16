@@ -4,7 +4,7 @@ import { getAuth } from "@/lib/auth";
 import { getSessionOrNull } from "@/lib/auth/session";
 import { normalizeThemePreference, THEME_COOKIE } from "@/lib/theme";
 import { getBranding } from "@/server/branding";
-import { AppNav } from "@/components/app-nav";
+import { AppShell } from "@/components/app-shell";
 
 export default async function AppLayout({
   children,
@@ -20,14 +20,13 @@ export default async function AppLayout({
   );
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
-      <AppNav
-        branding={branding}
-        userName={authSession?.user.name ?? "Usuario"}
-        role={session.role}
-        theme={theme}
-      />
-      <main className="min-w-0 flex-1 overflow-hidden">{children}</main>
-    </div>
+    <AppShell
+      branding={branding}
+      userName={authSession?.user.name ?? "Usuario"}
+      role={session.role}
+      theme={theme}
+    >
+      {children}
+    </AppShell>
   );
 }
