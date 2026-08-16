@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { PanelRight } from "lucide-react";
 import { cn, formatPhone } from "@/lib/utils";
@@ -12,12 +12,25 @@ import { MessageThread } from "./message-thread";
 import { Composer } from "./composer";
 import { ContactPanel } from "./contact-panel";
 
+/**
+ * Texto que ya salió del compositor pero cuyo POST todavía viaja. Existe solo
+ * en el cliente: se pinta como burbuja "enviando" para que escribir el
+ * siguiente renglón no espere a Meta (~1,5 s de ida y vuelta).
+ */
+type PendingOut = {
+  id: string;
+  conversationId: string;
+  text: string;
+  createdAt: string;
+};
+
 export function InboxClient() {
   const [conversations, setConversations] = useState<ConversationDto[] | null>(
     null
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messages, setMessages] = useState<MessageDto[]>([]);
+  const [pending, setPending] = useState<PendingOut[]>([]);
   const [panelOpen, setPanelOpen] = useState(true);
   // Se incrementa con cada evento SSE que puede cambiar la etapa/lead o el
   // estado del agente: el panel de detalles lo observa y refetch en vivo.
@@ -33,6 +46,11 @@ export function InboxClient() {
   const selectedIdRef = useRef<string | null>(null);
   selectedIdRef.current = selectedId;
   const lastFetchRef = useRef<string | null>(null);
+  const tmpSeq = useRef(0);
+  // Los envíos salen en fila: el compositor ya no espera, pero WhatsApp debe
+  // recibir "hola" antes que el renglón siguiente. Sin esta cadena, dos POST
+  // simultáneos pueden llegar a Meta en desorden.
+  const sendQueue = useRef<Promise<unknown>>(Promise.resolve());
 
   const refetchConversations = useCallback(async () => {
     const res = await fetch("/api/conversations").catch(() => null);
@@ -124,27 +142,97 @@ export function InboxClient() {
 
   const selected = conversations?.find((c) => c.id === selectedId) ?? null;
 
+  /**
+   * Hilo visible = lo confirmado + lo que aún viaja. El mensaje real puede
+   * llegar por refetch o por SSE antes de que retiremos el provisional, así
+   * que cada pendiente se empareja con UN mensaje real (no por texto suelto:
+   * mandar "hola" dos veces seguidas no debe borrar la segunda burbuja).
+   */
+  const thread = useMemo(() => {
+    const propios = pending.filter((p) => p.conversationId === selectedId);
+    if (propios.length === 0) return messages;
+    const emparejados = new Set<string>();
+    const visibles = propios.filter((p) => {
+      const real = messages.find(
+        (m) =>
+          !emparejados.has(m.id) &&
+          m.direction === "out" &&
+          m.text === p.text &&
+          Date.parse(m.createdAt) >= Date.parse(p.createdAt) - 60_000
+      );
+      if (real) emparejados.add(real.id);
+      return !real;
+    });
+    if (visibles.length === 0) return messages;
+    return [
+      ...messages,
+      ...visibles.map<MessageDto>((p) => ({
+        id: p.id,
+        conversationId: p.conversationId,
+        direction: "out",
+        type: "text",
+        text: p.text,
+        status: "pending",
+        error: null,
+        aiGenerated: false,
+        origin: "operator",
+        media: null,
+        createdAt: p.createdAt,
+      })),
+    ];
+  }, [messages, pending, selectedId]);
+
+  /**
+   * El compositor NO espera a que esto termine: limpia su campo al instante y
+   * aquí se pinta la burbuja "enviando". Si el envío falla, la burbuja se
+   * retira y el error vuelve al compositor, que devuelve el texto — un mensaje
+   * jamás se pierde en silencio.
+   */
   const sendText = useCallback(
     async (text: string): Promise<string | null> => {
-      if (!selectedIdRef.current) return "Sin conversación seleccionada";
-      const res = await fetch(
-        `/api/conversations/${selectedIdRef.current}/messages`,
+      const conversationId = selectedIdRef.current;
+      if (!conversationId) return "Sin conversación seleccionada";
+
+      const tmpId = `tmp_${++tmpSeq.current}`;
+      setPending((prev) => [
+        ...prev,
         {
+          id: tmpId,
+          conversationId,
+          text,
+          createdAt: new Date().toISOString(),
+        },
+      ]);
+      const drop = () => setPending((prev) => prev.filter((p) => p.id !== tmpId));
+
+      const run = async (): Promise<string | null> => {
+        const res = await fetch(`/api/conversations/${conversationId}/messages`, {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ text }),
+        }).catch(() => null);
+        if (!res) {
+          drop();
+          return "Sin conexión con el servidor";
         }
-      ).catch(() => null);
-      if (!res) return "Sin conexión con el servidor";
-      if (!res.ok) {
-        const data = (await res.json().catch(() => null)) as {
-          error?: { message?: string };
-        } | null;
-        return data?.error?.message ?? "No se pudo enviar el mensaje";
-      }
-      if (selectedIdRef.current) void refetchMessages(selectedIdRef.current);
-      void refetchConversations();
-      return null;
+        if (!res.ok) {
+          const data = (await res.json().catch(() => null)) as {
+            error?: { message?: string };
+          } | null;
+          drop();
+          return data?.error?.message ?? "No se pudo enviar el mensaje";
+        }
+        // Primero traer el mensaje real, después quitar el provisional: al
+        // revés, la burbuja parpadearía.
+        await refetchMessages(conversationId);
+        drop();
+        void refetchConversations();
+        return null;
+      };
+
+      const queued = sendQueue.current.then(run, run);
+      sendQueue.current = queued.catch(() => null);
+      return queued;
     },
     [refetchMessages, refetchConversations]
   );
@@ -210,7 +298,7 @@ export function InboxClient() {
                 </button>
               )}
             </header>
-            <MessageThread messages={messages} />
+            <MessageThread messages={thread} />
             <Composer
               conversation={selected}
               onSend={sendText}

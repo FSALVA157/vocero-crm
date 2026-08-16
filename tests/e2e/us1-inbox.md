@@ -24,17 +24,32 @@
    ✅ Los ticks progresan a ✓✓ y a ✓✓ azul sin recargar.
 7. **Avatares**: la conversación muestra iniciales "CE" con color estable.
 
+## Envío instantáneo
+
+Automatizado en `scripts/e2e-envio-instantaneo.mjs`.
+
+8. **Enter no espera a Meta**: escribir un renglón y pulsar Enter.
+   ✅ El campo queda libre de inmediato (menos de 300 ms), sin esperar el viaje
+   a Meta, que tarda ~1,5 s.
+   ✅ En el hilo aparece ya la burbuja con reloj de "enviando".
+9. **Dos renglones seguidos**: sin esperar, escribir el siguiente y pulsar Enter.
+   ✅ Salen DOS mensajes separados, no uno con todo pegado.
+   ✅ Llegan a WhatsApp en el mismo orden en que se escribieron: los envíos
+   salen encolados, porque dos POST simultáneos pueden llegar a Meta en desorden.
+   ✅ Cuando el mensaje real llega, la burbuja provisional se retira sin dejar
+   duplicado y sin parpadeo.
+
 ## Caminos infelices
 
-8. **Dedup (SC-004)**: enviar dos veces el mismo `waMessageId` `wamid.dedup.1`.
+10. **Dedup (SC-004)**: enviar dos veces el mismo `waMessageId` `wamid.dedup.1`.
    ✅ El hilo muestra UNA sola vez el mensaje.
-9. **Ventana cerrada (SC-005)**: inbound de contacto nuevo con
+11. **Ventana cerrada (SC-005)**: inbound de contacto nuevo con
    `timestamp` de hace 25 horas → abrir su conversación.
    ✅ El composer está bloqueado con la explicación de la ventana y ofrece
    plantillas (estado vacío si no hay aprobadas).
    ✅ `POST /api/conversations/:id/messages` responde 409 `window_closed`.
-10. **Webhook segmento incorrecto**: `POST /api/webhooks/wa/token-falso` → 404
+12. **Webhook segmento incorrecto**: `POST /api/webhooks/wa/token-falso` → 404
     y no aparece nada nuevo en la bandeja.
-11. **Reconexión**: (cubierto por diseño: EventSource reconecta y el cliente
+13. **Reconexión**: (cubierto por diseño: EventSource reconecta y el cliente
     refetch-ea con el evento `open`; verificación funcional en el checkpoint
     de compose).

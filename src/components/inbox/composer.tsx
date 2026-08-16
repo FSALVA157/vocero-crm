@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useRef, useState } from "react";
 import {
@@ -98,10 +98,12 @@ export function Composer({
   }
 
   async function submit() {
-    if (sending) return;
     setError(null);
 
     if (file) {
+      // El adjunto sí espera: sube el archivo y no tiene sentido encolar otro
+      // mientras tanto.
+      if (sending) return;
       setSending(true);
       const form = new FormData();
       form.set("file", file);
@@ -125,15 +127,21 @@ export function Composer({
 
     const value = text.trim();
     if (!value) return;
-    setSending(true);
-    const err = await onSend(value);
-    setSending(false);
-    if (err) {
-      setError(err);
-      return;
-    }
+    // Aquí NO se espera al servidor. Enviar tarda ~1.5 s (el viaje a Meta) y
+    // durante ese rato el renglón siguiente se escribía encima del anterior y
+    // salía todo como un solo mensaje. El campo se limpia ya; la burbuja
+    // "enviando" del hilo es la que informa el estado real.
     setText("");
     if (taRef.current) taRef.current.style.height = "auto";
+    const err = await onSend(value);
+    if (err) {
+      setError(err);
+      // Lo que no salió vuelve al campo. Si ya empezaste a escribir otra cosa
+      // se antepone en vez de pisarte: nada se pierde en silencio.
+      setText((actual) => (actual ? `${value}\n${actual}` : value));
+      taRef.current?.focus();
+      setTimeout(autogrow, 0);
+    }
   }
 
   async function submitLocation() {
@@ -276,7 +284,7 @@ export function Composer({
             <input
               value={placeName}
               onChange={(e) => setPlaceName(e.target.value)}
-              placeholder="Oficina Central"
+              placeholder="Oficina AISHIA"
               className="mt-1 w-full rounded border bg-background px-2 py-1.5 text-sm outline-none focus:border-brand"
             />
           </label>
