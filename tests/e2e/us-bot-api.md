@@ -108,14 +108,25 @@ CRM no impone un cuestionario.
     esquivar la regla de Meta; para eso está el envío de plantilla desde la app.
 30. En una conversación del Laboratorio → **409** `sandbox_violation`.
 
+## El bot pide un humano
+
+31. `POST /api/bot/handoff {conversationId, reason}` con la key → **200**, la
+    conversación queda con `aiEnabled: false`, su `handoffAt` y el motivo. En la
+    bandeja se ve al instante, sin recargar (mismo evento que el toggle).
+32. Repetirlo es idempotente: no pisa la hora ni el motivo del primero.
+33. Un `reason` que no está en el catálogo —o ausente— **no tira el handoff**:
+    cae a `modelo` y la IA se pausa igual. Un 422 aquí dejaría al bot
+    vendiéndole a alguien que acaba de pedir un humano.
+34. Conversación inexistente → **404**.
+
 ## Camino infeliz
 
-31. `GET /api/bot/profile` en una instancia sin perfil de agente → **404**
+35. `GET /api/bot/profile` en una instancia sin perfil de agente → **404**
     `no_profile` (condición esperada, no un 500: el bot cae a su brief local).
-32. `GET /api/bot/context` sin `waIdentity` ni `conversationId` → **422**;
+36. `GET /api/bot/context` sin `waIdentity` ni `conversationId` → **422**;
     con un `conversationId` que no existe → **404**.
-33. `POST /api/bot/messages` con texto vacío → **422**.
-34. `POST /api/bot/typing` con un `conversationId` inexistente → **404**.
-35. Con Meta caído (token `...-invalid` en el mock), typing → **200**
+37. `POST /api/bot/messages` con texto vacío → **422**.
+38. `POST /api/bot/typing` con un `conversationId` inexistente → **404**.
+39. Con Meta caído (token `...-invalid` en el mock), typing → **200**
     `{ok:false, reason:"meta_error"}`: es best-effort por contrato, al bot
     jamás le vale reintentarlo.
