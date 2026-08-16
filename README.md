@@ -1,5 +1,8 @@
 # Vocero CRM
 
+[![CI](https://github.com/kevinrivm/vocero-crm/actions/workflows/ci.yml/badge.svg)](https://github.com/kevinrivm/vocero-crm/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 **El CRM de WhatsApp open source con un agente de IA que se pone a prueba solo.**
 
 Vocero es un CRM self-hosted y gratuito para negocios que venden por WhatsApp:
