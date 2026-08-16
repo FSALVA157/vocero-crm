@@ -13,9 +13,11 @@ import {
   Users,
 } from "lucide-react";
 import type { Branding } from "@/lib/branding";
+import type { ThemePreference } from "@/lib/theme";
 import { cn, initials } from "@/lib/utils";
 import { signOut } from "@/lib/auth/client";
 import { useEvents } from "@/components/use-events";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const NAV = [
   { href: "/inbox", label: "Bandeja", icon: Inbox, badge: true },
@@ -29,10 +31,12 @@ export function AppNav({
   branding,
   userName,
   role,
+  theme,
 }: {
   branding: Branding;
   userName: string;
   role: string;
+  theme: ThemePreference;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -61,7 +65,7 @@ export function AppNav({
       {/* Brand white-label */}
       <div className="mb-4 flex items-center gap-2.5 px-2">
         <span
-          className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-sm bg-brand text-[15px] font-bold text-white"
+          className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-sm bg-brand text-[15px] font-bold text-brand-fg"
           aria-hidden
         >
           {branding.name.charAt(0).toUpperCase()}
@@ -98,7 +102,7 @@ export function AppNav({
                 <span
                   className={cn(
                     "flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1.5 text-[10.5px] font-semibold",
-                    active ? "bg-brand text-white" : "bg-border-strong text-text-2"
+                    active ? "bg-brand text-brand-fg" : "bg-border-strong text-text-2"
                   )}
                 >
                   {unread}
@@ -140,6 +144,7 @@ export function AppNav({
             {role === "owner" ? "Propietario" : "Equipo"} · En línea
           </span>
         </span>
+        <ThemeToggle initial={theme} />
         <button
           aria-label="Cerrar sesión"
           title="Cerrar sesión"

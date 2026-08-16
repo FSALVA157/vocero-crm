@@ -9,7 +9,7 @@ export default async function AuthLayout({
     <main className="flex min-h-screen items-center justify-center bg-subtle p-4">
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center gap-2 text-center">
-          <span className="flex h-10 w-10 items-center justify-center rounded-md bg-brand text-lg font-bold text-white">
+          <span className="flex h-10 w-10 items-center justify-center rounded-md bg-brand text-lg font-bold text-brand-fg">
             {branding.name.charAt(0).toUpperCase()}
           </span>
           <div>

@@ -152,7 +152,7 @@ export function ConversationList({
             className={cn(
               "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-[5px] text-[12.5px] font-medium transition-colors",
               filter === f.id
-                ? "border-brand bg-brand text-white"
+                ? "border-brand bg-brand text-brand-fg"
                 : "bg-background text-text-2 hover:bg-accent"
             )}
           >
@@ -160,7 +160,7 @@ export function ConversationList({
             <span
               className={cn(
                 "rounded-full px-1.5 text-[11px]",
-                filter === f.id ? "bg-white/20" : "bg-secondary text-text-3"
+                filter === f.id ? "bg-brand-veil" : "bg-secondary text-text-3"
               )}
             >
               {f.count}
@@ -177,7 +177,7 @@ export function ConversationList({
               "ml-auto min-w-0 max-w-[42%] truncate rounded-full border px-2 py-[5px] text-[12.5px] font-medium transition-colors",
               stage === "all"
                 ? "bg-background text-text-2 hover:bg-accent"
-                : "border-brand bg-brand text-white"
+                : "border-brand bg-brand text-brand-fg"
             )}
           >
             <option value="all">Toda etapa</option>
@@ -251,7 +251,7 @@ export function ConversationList({
                           {previewText(c.preview)}
                         </span>
                         {unread && (
-                          <span className="flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-brand px-1.5 text-[10.5px] font-semibold text-white">
+                          <span className="flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-brand px-1.5 text-[10.5px] font-semibold text-brand-fg">
                             {c.unreadCount}
                           </span>
                         )}
@@ -269,7 +269,7 @@ export function ConversationList({
                           </span>
                         )}
                         {c.handoffAt && (
-                          <span className="inline-flex items-center gap-1 rounded-full border border-[#ece2cf] bg-[#faf7f0] px-2 py-0.5 text-[11px] text-[#8a6d3b]">
+                          <span className="inline-flex items-center gap-1 rounded-full border border-warning-soft bg-warning-tint px-2 py-0.5 text-[11px] text-warning-text">
                             <UserRound className="h-3 w-3" strokeWidth={1.7} />
                             Atención humana
                           </span>

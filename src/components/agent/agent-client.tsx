@@ -90,7 +90,7 @@ export function AgentClient() {
             }`}
           >
             <span
-              className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${
+              className={`absolute top-0.5 h-5 w-5 rounded-full bg-knob transition-transform ${
                 profile.enabled ? "translate-x-5" : "translate-x-0.5"
               }`}
             />
@@ -249,7 +249,7 @@ function KbSection({
           )}
         </div>
         {kbSize?.warning && (
-          <p className="text-xs text-[#8a6d3b]">
+          <p className="text-xs text-warning-text">
             El conocimiento se acerca al límite del contexto del modelo (v1 lo
             inyecta completo en cada turno). Considera depurar entradas.
           </p>

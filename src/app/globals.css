@@ -3,12 +3,17 @@
 @tailwind utilities;
 
 /*
-  Sistema de diseño "Atlas": modo claro sobrio (neutros fríos + un acento).
+  Sistema de diseño "Atlas" en dos temas (neutros fríos + un acento).
+  El tema activo se selecciona con `data-theme` en <html> (ver src/lib/theme.ts):
+  el servidor lo escribe desde la cookie y, en modo "sistema", un script en
+  <head> lo resuelve antes del primer pintado (sin flash).
   Los tokens de acento (--accent*) se sobreescriben en runtime por el
-  white-label de la organización (Configuración → Marca).
+  white-label de la organización (Configuración → Marca), para AMBOS temas.
 */
 @layer base {
   :root {
+    color-scheme: light;
+
     /* Neutros (valores exactos del handoff) */
     --bg: #ffffff;
     --bg-subtle: #fbfbfc;
@@ -32,12 +37,36 @@
     --accent-soft: #dde5ee;
     --accent-tint: #f3f6f9;
     --accent-text: #2b4056;
+    --accent-fg: #ffffff;
+    /* Velo translúcido ENCIMA del acento (contadores dentro de un chip). */
+    --accent-veil: rgba(255, 255, 255, 0.2);
     --bg-active: var(--accent-tint);
 
-    /* Estado */
+    /* Estado: color puro + tríada (tint = fondo, soft = borde, text = tinta) */
     --success: #5f8f74;
+    --success-tint: #eff7f1;
+    --success-soft: #d8e8dd;
+    --success-text: #3f6b52;
+
     --warning: #b08b5e;
+    --warning-tint: #faf7f0;
+    --warning-soft: #ece2cf;
+    --warning-text: #8a6d3b;
+
     --danger: #a2504c;
+    --danger-tint: #faf1f0;
+    --danger-soft: #ecd4d2;
+    --danger-text: #a2504c;
+    --danger-fg: #ffffff;
+
+    --info: #4a6c96;
+    --info-tint: #f3f7fc;
+    --info-soft: #d7e3f4;
+    --info-text: #3c5a82;
+
+    /* Superficies auxiliares */
+    --overlay: rgba(0, 0, 0, 0.6);
+    --knob: #ffffff;
 
     /* Radios y sombras */
     --radius-sm: 7px;
@@ -49,6 +78,66 @@
 
     /* Densidad de filas de conversación */
     --row-py: 11px;
+  }
+
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+
+    /* Neutros invertidos: el panel lateral queda por DEBAJO del contenido */
+    --bg: #101115;
+    --bg-subtle: #0b0c0f;
+    --bg-panel: #17181d;
+    --bg-hover: #1e1f26;
+    --text: #eceef2;
+    --text-2: #a8abb5;
+    --text-3: #7c7f8a;
+    --text-4: #5c5f69;
+    --border: #23242b;
+    --border-strong: #31333d;
+
+    /* Chat */
+    --chat-bg: #0b0c0f;
+    --bubble-out: #1d2a36;
+    --bubble-out-text: #d6e2ee;
+
+    /* Acento: el white-label lo recalcula para fondo oscuro */
+    --accent: #7f9cba;
+    --accent-hover: #96aeca;
+    --accent-soft: #2a3846;
+    --accent-tint: #1a212a;
+    --accent-text: #a9bfd6;
+    --accent-fg: #0f1419;
+    --accent-veil: rgba(0, 0, 0, 0.22);
+
+    /* Estado sobre fondo oscuro */
+    --success: #7fb894;
+    --success-tint: #15221a;
+    --success-soft: #263b2d;
+    --success-text: #8cc4a1;
+
+    --warning: #d0a86f;
+    --warning-tint: #241f16;
+    --warning-soft: #3d3421;
+    --warning-text: #d9b47c;
+
+    --danger: #d1706c;
+    --danger-tint: #261817;
+    --danger-soft: #422726;
+    --danger-text: #e09490;
+    --danger-fg: #1b1113;
+
+    --info: #7fa3cd;
+    --info-tint: #151d27;
+    --info-soft: #263749;
+    --info-text: #a2c0e2;
+
+    --overlay: rgba(0, 0, 0, 0.72);
+    --knob: #d9dae1;
+
+    /* Sombras: sobre oscuro necesitan más negro para leerse */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 6px 20px -6px rgba(0, 0, 0, 0.55);
+    --shadow-pop: 0 12px 32px -8px rgba(0, 0, 0, 0.7);
   }
 }
 
