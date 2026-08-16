@@ -191,6 +191,13 @@ export const lead = pgTable(
     amountCents: integer("amount_cents"),
     /** Moneda del monto; la del negocio al capturarlo (Ajustes → Marca). */
     currency: text("currency"),
+    /**
+     * Prioridad de cierre. NULL = nadie la ha decidido, que NO es lo mismo que
+     * "media": nada la escribe automáticamente, así que el dueño puede confiar
+     * en que lo que ve es lo que él puso.
+     */
+    priority: text("priority", { enum: ["alta", "media", "baja"] }),
+    priorityUpdatedAt: timestamp("priority_updated_at"),
     lastActivityAt: timestamp("last_activity_at"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),

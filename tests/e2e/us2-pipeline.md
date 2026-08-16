@@ -91,7 +91,21 @@ esto le agrega cuánto dinero hay en cada columna.
     ✅ Un importe ya capturado conserva la suya: cambiar el ajuste no
     reinterpreta pesos como dólares.
 
+## Prioridad
+
+Automatizado en `scripts/e2e-prioridad.mjs`. A quién llamar primero.
+
+19. **La fija el dueño** desde la tarjeta (Alta / Media / Baja).
+    ✅ Un lead nuevo nace **sin** prioridad — no con una "media" inventada.
+    ✅ Se puede **quitar**: un clic por error no queda para siempre.
+20. **Nada la escribe solo.** Mover la tarjeta de etapa, capturar el monto o
+    recibir un mensaje del cliente NO la cambian. Es la única forma de que el
+    dueño pueda confiar en que lo que ve es lo que él puso.
+21. **Se ve donde se trabaja**: etiqueta en la tarjeta del Pipeline y en la
+    lista de Contactos, que además ordena alta primero y deja al final a quien
+    no tiene prioridad.
+
 ## Contactos (FR-013)
 
-19. Buscar por "Frio" → filtra; editar notas → persiste; archivar → desaparece
+22. Buscar por "Frio" → filtra; editar notas → persiste; archivar → desaparece
     de la lista (visible con "Ver archivados"); desarchivar → vuelve.

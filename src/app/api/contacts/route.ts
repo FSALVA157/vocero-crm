@@ -35,6 +35,7 @@ export const GET = withAuth(async (session, req: Request) => {
     .select({
       contactId: schema.lead.contactId,
       stageName: schema.pipelineStage.name,
+      priority: schema.lead.priority,
     })
     .from(schema.lead)
     .innerJoin(
@@ -44,6 +45,9 @@ export const GET = withAuth(async (session, req: Request) => {
     .where(scoped(schema.lead.organizationId, session.organizationId));
   const stageByContact = new Map(
     leadStages.map((r) => [r.contactId, r.stageName])
+  );
+  const priorityByContact = new Map(
+    leadStages.map((r) => [r.contactId, r.priority])
   );
 
   const qDigits = q ? digitsOnly(q) : "";
@@ -86,7 +90,13 @@ export const GET = withAuth(async (session, req: Request) => {
 
   const contacts = rows
     .filter((c) => includeArchived || !c.archivedAt)
-    .map((c) => serializeContact(c, stageByContact.get(c.id) ?? null));
+    .map((c) =>
+      serializeContact(
+        c,
+        stageByContact.get(c.id) ?? null,
+        priorityByContact.get(c.id) ?? null
+      )
+    );
   return Response.json({ contacts });
 });
 
