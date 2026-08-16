@@ -25,6 +25,8 @@ export type MockTemplate = {
   category: string;
   status: "PENDING" | "APPROVED" | "REJECTED";
   body: string;
+  /** Componentes tal cual los mandó el CRM: Meta valida aquí los `example`. */
+  components?: unknown[];
 };
 
 type WaMockState = {

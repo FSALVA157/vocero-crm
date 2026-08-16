@@ -56,7 +56,7 @@ export async function GET(req: Request, ctx: Params) {
         language: t.language,
         category: t.category,
         status: t.status,
-        components: [{ type: "BODY", text: t.body }],
+        components: t.components ?? [{ type: "BODY", text: t.body }],
       })),
     });
   }
@@ -117,6 +117,40 @@ export async function POST(req: Request, ctx: Params) {
   // POST {phoneNumberId}/messages → registra en el outbox
   if (path.length === 2 && path[1] === "messages") {
     const state = getWaMockState();
+    // Meta responde 132000 si los parámetros no cuadran con las {{n}} de la
+    // plantilla aprobada. El mock lo replica para que un desfase no pase.
+    if (body.type === "template") {
+      const tplSend = body.template as
+        | {
+            name?: string;
+            components?: { type?: string; parameters?: unknown[] }[];
+          }
+        | undefined;
+      const known = state.templates.find((t) => t.name === tplSend?.name);
+      if (known) {
+        const expected = [...known.body.matchAll(/\{\{\s*(\d+)\s*\}\}/g)].reduce(
+          (max, m) => Math.max(max, Number(m[1])),
+          0
+        );
+        const got =
+          tplSend?.components?.find(
+            (c) => (c.type ?? "").toLowerCase() === "body"
+          )?.parameters?.length ?? 0;
+        if (expected !== got) {
+          return Response.json(
+            {
+              error: {
+                message: `(#132000) Number of parameters does not match the expected number of params: expected ${expected}, got ${got}`,
+                type: "OAuthException",
+                code: 132000,
+                fbtrace_id: "mock",
+              },
+            },
+            { status: 400 }
+          );
+        }
+      }
+    }
     const n = nextN();
     const waMessageId = nextOutboundWamid();
     state.outbox.push({
@@ -138,9 +172,33 @@ export async function POST(req: Request, ctx: Params) {
   // POST {wabaId}/message_templates → alta de plantilla (queda PENDING)
   if (path.length === 2 && path[1] === "message_templates") {
     const state = getWaMockState();
-    const bodyComponent = (
-      body.components as { type?: string; text?: string }[] | undefined
-    )?.find((c) => (c.type ?? "").toUpperCase() === "BODY");
+    const components = (body.components ?? []) as {
+      type?: string;
+      text?: string;
+      example?: { body_text?: string[][] };
+    }[];
+    const bodyComponent = components.find(
+      (c) => (c.type ?? "").toUpperCase() === "BODY"
+    );
+    // Meta valida que haya un ejemplo por cada {{n}} del cuerpo: sin esto el
+    // mock aceptaría plantillas que producción rechaza (error 100).
+    const highestVar = [
+      ...(bodyComponent?.text ?? "").matchAll(/\{\{\s*(\d+)\s*\}\}/g),
+    ].reduce((max, m) => Math.max(max, Number(m[1])), 0);
+    const examples = bodyComponent?.example?.body_text?.[0] ?? [];
+    if (highestVar !== examples.length) {
+      return Response.json(
+        {
+          error: {
+            message: `Invalid parameter: expected ${highestVar} example value(s) for the body, got ${examples.length}`,
+            type: "GraphMethodException",
+            code: 100,
+            fbtrace_id: "mock",
+          },
+        },
+        { status: 400 }
+      );
+    }
     const tpl: MockTemplate = {
       id: `tplmock_${nextN()}`,
       name: String(body.name ?? ""),
@@ -148,6 +206,7 @@ export async function POST(req: Request, ctx: Params) {
       category: String(body.category ?? "UTILITY"),
       status: "PENDING",
       body: bodyComponent?.text ?? "",
+      components,
     };
     state.templates.push(tpl);
     return Response.json({ id: tpl.id, status: "PENDING", category: tpl.category });
