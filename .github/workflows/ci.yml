@@ -27,14 +27,14 @@ jobs:
     name: typecheck · lint · test · build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Antes que setup-node, porque su caché necesita pnpm ya instalado.
       # La versión sale de `packageManager` en package.json y no se repite
       # aquí: duplicarla es tenerla desactualizada en uno de los dos lados.
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
