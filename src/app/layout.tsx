@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { Geist } from "next/font/google";
 import { accentCssVariables, DEFAULT_BRANDING } from "@/lib/branding";
+import { normalizeThemePreference, THEME_COOKIE } from "@/lib/theme";
 import { getBranding } from "@/server/branding";
 import "./globals.css";
 
@@ -25,8 +27,17 @@ export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   const branding = await getBranding().catch(() => DEFAULT_BRANDING);
+  const theme = normalizeThemePreference(
+    (await cookies()).get(THEME_COOKIE)?.value
+  );
   return (
-    <html lang="es" className={geist.variable}>
+    <html
+      lang="es"
+      className={geist.variable}
+      // La preferencia siempre es explícita: el tema viaja resuelto en el HTML
+      // del servidor, así que no hay divergencia con el cliente ni parpadeo.
+      data-theme={theme}
+    >
       <head>
         {/* Acento white-label inyectado en SSR: sin flash de tema */}
         <style
