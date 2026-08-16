@@ -122,6 +122,15 @@ export const contact = pgTable(
     waUserId: text("wa_user_id"),
     name: text("name").notNull(),
     notes: text("notes"),
+    /**
+     * Ficha de calificación que levanta un cerebro externo por
+     * `PUT /api/bot/ficha`. Es un objeto libre a propósito: los datos que
+     * importan de un lead los define cada negocio (una clínica querrá
+     * "tratamiento", una constructora "metros"), y cablearlos como columnas
+     * obligaría a migrar el CRM cada vez que alguien cambia su cuestionario.
+     * Merge campo a campo; `null` explícito borra la clave.
+     */
+    ficha: jsonb("ficha").$type<Record<string, unknown>>(),
     archivedAt: timestamp("archived_at"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -191,7 +200,15 @@ export const conversation = pgTable(
     handoffAt: timestamp("handoff_at"),
     handoffReason: text("handoff_reason", {
       // 008: manual_reply = el dueño respondió desde la app del teléfono.
-      enum: ["cliente", "modelo", "error", "ventana", "manual_reply"],
+      // hostilidad = el lead se puso agresivo y el agente se retiró.
+      enum: [
+        "cliente",
+        "modelo",
+        "error",
+        "ventana",
+        "hostilidad",
+        "manual_reply",
+      ],
     }),
     lastInboundAt: timestamp("last_inbound_at"),
     lastMessageAt: timestamp("last_message_at"),
