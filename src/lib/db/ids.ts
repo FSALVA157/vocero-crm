@@ -11,6 +11,7 @@ const prefixes = {
   message: "msg",
   lead: "ld",
   stage: "stg",
+  leadStageEvent: "lse",
   credentials: "cred",
   agentProfile: "agp",
   kbEntry: "kb",

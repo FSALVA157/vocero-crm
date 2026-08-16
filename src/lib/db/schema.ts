@@ -1,5 +1,6 @@
 import {
   boolean,
+  check,
   index,
   integer,
   jsonb,
@@ -181,6 +182,92 @@ export const lead = pgTable(
   (t) => [
     uniqueIndex("lead_contact_uq").on(t.contactId),
     index("lead_org_stage_idx").on(t.organizationId, t.stageId, t.position),
+  ]
+);
+
+/**
+ * Bitácora de movimientos de etapa: append-only. Nada se actualiza ni se borra;
+ * corregir un dato es agregar un movimiento nuevo.
+ *
+ * Es el cimiento de todo lo histórico: sin ella el CRM solo sabe dónde está
+ * cada lead HOY, y "¿cuánto cerré en julio?" no tiene respuesta.
+ *
+ * Regla dura: la ÚNICA puerta que escribe aquí —y que escribe `lead.stage_id`—
+ * es `src/server/leads/stage-history.ts`. Un unit test de vigilancia falla si
+ * aparece otra escritura, porque un camino que mueva el lead sin registrar el
+ * evento no truena: solo hace que las gráficas mientan meses después.
+ */
+export const leadStageEvent = pgTable(
+  "lead_stage_event",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    leadId: text("lead_id")
+      .notNull()
+      .references(() => lead.id, { onDelete: "cascade" }),
+    /** Denormalizado a propósito: casi toda agregación cruza con el contacto,
+     *  y el join extra se pagaría en cada consulta. */
+    contactId: text("contact_id")
+      .notNull()
+      .references(() => contact.id, { onDelete: "cascade" }),
+    /** NULL = el lead nació en `toStage` (evento de creación). */
+    fromStageId: text("from_stage_id").references(() => pipelineStage.id, {
+      onDelete: "set null",
+    }),
+    fromStageName: text("from_stage_name"),
+    toStageId: text("to_stage_id").references(() => pipelineStage.id, {
+      onDelete: "set null",
+    }),
+    /** Snapshots: sobreviven al renombre y al borrado de la etapa, para que
+     *  reorganizar el tablero de hoy no reescriba el embudo del pasado. */
+    toStageName: text("to_stage_name").notNull(),
+    toStageKind: text("to_stage_kind", { enum: ["open", "won", "lost"] })
+      .notNull()
+      .default("open"),
+    /** Cuándo PASÓ (no cuándo se registró). */
+    occurredAt: timestamp("occurred_at").notNull().defaultNow(),
+    /** NULL = no lo movió una persona (bot, sistema, migración). */
+    actorUserId: text("actor_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    source: text("source", {
+      enum: ["dueno", "bot", "sistema", "migracion"],
+    })
+      .notNull()
+      .default("dueno"),
+    /** true = fecha SEMBRADA en la migración, no observada. Cuenta para los
+     *  totales pero jamás para promedios de tiempo. */
+    approximate: boolean("approximate").notNull().default(false),
+    lossReason: text("loss_reason", {
+      enum: [
+        "precio",
+        "no_es_perfil",
+        "sin_presupuesto",
+        "eligio_otro",
+        "nunca_contesto",
+        "otro",
+      ],
+    }),
+    lossNote: text("loss_note"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("lse_org_occurred_idx").on(t.organizationId, t.occurredAt),
+    index("lse_lead_occurred_idx").on(t.leadId, t.occurredAt),
+    index("lse_org_kind_occurred_idx").on(
+      t.organizationId,
+      t.toStageKind,
+      t.occurredAt
+    ),
+    // Perder un trato sin motivo es imposible a nivel de BASE, no por
+    // disciplina de cada ruta. La excepción es la siembra de la migración: no
+    // puede inventar un motivo que nadie capturó.
+    check(
+      "lse_loss_reason_ck",
+      sql`${t.toStageKind} <> 'lost' OR ${t.approximate} = true OR ${t.lossReason} IS NOT NULL`
+    ),
   ]
 );
 
