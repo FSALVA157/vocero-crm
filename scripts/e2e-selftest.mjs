@@ -236,6 +236,60 @@ async function main() {
     `status=${medBad.res.status}`
   );
 
+  console.log("\n== us-bot-api: perfil del agente + knowledge base ==");
+  const profNoKey = await api("/api/bot/profile");
+  ok("perfil sin API key → 401", profNoKey.res.status === 401);
+
+  const putProf = await api("/api/agent/profile", {
+    method: "PUT",
+    body: JSON.stringify({
+      name: "Sofi",
+      tone: "cálido y directo",
+      instructions: "Vendemos limpiezas dentales.",
+      escalationRules: "Urgencias de dolor → humano.",
+      greeting: "¡Hola! Soy Sofi",
+      enabled: false,
+    }),
+  });
+  ok("perfil guardado desde la pantalla Agente", putProf.res.ok);
+  const kbQa = await api("/api/kb", {
+    method: "POST",
+    body: JSON.stringify({
+      kind: "qa",
+      question: "¿Cuánto cuesta?",
+      answer: "$800.",
+    }),
+  });
+  ok("entrada de KB creada desde la pantalla", kbQa.res.ok, JSON.stringify(kbQa.json));
+
+  const prof = await bot("/api/bot/profile");
+  ok(
+    "GET /api/bot/profile → 200 con el perfil de la pantalla",
+    prof.res.ok && prof.json?.profile?.name === "Sofi",
+    JSON.stringify(prof.json?.profile)
+  );
+  ok(
+    "el knowledge base viaja renderizado (P:/R:)",
+    typeof prof.json?.kb === "string" && prof.json.kb.includes("P: ¿Cuánto cuesta?"),
+    JSON.stringify(prof.json?.kb)
+  );
+  ok(
+    "`enabled` NO viaja: gobierna la IA in-process, no al bot externo",
+    prof.json?.profile && !("enabled" in prof.json.profile)
+  );
+  ok("`resources` presente y vacío", Array.isArray(prof.json?.resources));
+
+  await api("/api/agent/profile", {
+    method: "PUT",
+    body: JSON.stringify({ tone: "seco y breve" }),
+  });
+  const profAgain = await bot("/api/bot/profile");
+  ok(
+    "editar el tono se refleja al instante (sin caché)",
+    profAgain.json?.profile?.tone === "seco y breve",
+    JSON.stringify(profAgain.json?.profile?.tone)
+  );
+
   console.log("\n== us-bot-api: IA pausada y reset ==");
   const pause = await api(`/api/conversations/${convId}`, {
     method: "PATCH",
