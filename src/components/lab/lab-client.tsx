@@ -145,7 +145,7 @@ export function LabClient() {
         onLaunch={() => void launch()}
         disabled={false}
       />
-      {error && <p className="px-6 pt-3 text-sm text-destructive">{error}</p>}
+      {error && <p className="px-4 pt-3 text-sm text-destructive sm:px-6">{error}</p>}
 
       {running && progress && (
         <div className="mx-6 mt-4 rounded-lg border bg-card p-4">
@@ -164,7 +164,7 @@ export function LabClient() {
         </div>
       )}
 
-      <div className="grid gap-6 p-6 lg:grid-cols-[280px_1fr]">
+      <div className="grid gap-4 p-4 sm:gap-6 sm:p-6 lg:grid-cols-[280px_1fr]">
         <HistoryList
           runs={runs}
           selectedRunId={selectedRunId}
@@ -196,7 +196,7 @@ function Header({
   disabled: boolean;
 }) {
   return (
-    <header className="flex items-center justify-between border-b px-6 py-4">
+    <header className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3 sm:px-6 sm:py-4">
       <div>
         <h2 className="flex items-center gap-2 font-semibold">
           <FlaskConical className="h-4 w-4 text-primary" /> Laboratorio

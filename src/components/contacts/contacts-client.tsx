@@ -63,9 +63,9 @@ export function ContactsClient() {
 
   return (
     <div className="flex h-full flex-col">
-      <header className="flex items-center justify-between gap-4 border-b px-6 py-4">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3 sm:gap-4 sm:px-6 sm:py-4">
         <h2 className="font-semibold">Contactos</h2>
-        <div className="flex items-center gap-3">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:gap-3">
           <label className="flex items-center gap-2 text-xs text-muted-foreground">
             <input
               type="checkbox"
@@ -90,7 +90,7 @@ export function ContactsClient() {
               ))}
             </select>
           )}
-          <div className="relative">
+          <div className="relative w-full sm:w-auto">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               ref={inputRef}
@@ -98,13 +98,13 @@ export function ContactsClient() {
               aria-label="Buscar contacto"
               defaultValue=""
               onChange={(e) => setQuery(e.target.value)}
-              className="w-72 pl-8"
+              className="w-full pl-8 sm:w-72"
             />
           </div>
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         {contacts.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
             {query.trim() || stage !== "all" ? (
@@ -132,11 +132,13 @@ export function ContactsClient() {
             {contacts.map((c) => (
               <li
                 key={c.id}
-                className="flex items-center gap-4 rounded-lg border bg-card px-4 py-3"
+                className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border bg-card px-3 py-3 sm:flex-nowrap sm:gap-x-4 sm:px-4"
               >
                 <ContactAvatar name={c.name} seed={c.id} />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
+                {/* El 60% mínimo es lo que empuja los botones a su propio
+                    renglón en el teléfono en vez de exprimir el nombre. */}
+                <div className="min-w-[60%] flex-1 sm:min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="truncate text-sm font-medium">
                       {c.name}
                     </span>
@@ -152,7 +154,7 @@ export function ContactsClient() {
                     {c.notes ? ` · ${c.notes.slice(0, 60)}` : ""}
                   </p>
                 </div>
-                <div className="flex shrink-0 items-center gap-1.5">
+                <div className="ml-auto flex shrink-0 items-center gap-1.5">
                   <Button
                     variant="ghost"
                     size="sm"
@@ -212,11 +214,11 @@ function EditDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-overlay p-4"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded-lg border bg-card p-5 shadow-xl"
+        className="max-h-[85dvh] w-full max-w-md overflow-y-auto rounded-lg border bg-card p-5 shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <h3 className="mb-4 font-semibold">Editar contacto</h3>

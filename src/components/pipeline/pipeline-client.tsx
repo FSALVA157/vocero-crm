@@ -80,14 +80,16 @@ export function PipelineClient() {
 
   return (
     <div className="flex h-full flex-col">
-      <header className="flex items-center justify-between border-b px-6 py-4">
+      <header className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3 sm:px-6 sm:py-4">
         <h2 className="font-semibold">Pipeline</h2>
         <Button variant="outline" size="sm" onClick={() => setManaging(true)}>
           <Settings2 className="h-4 w-4" /> Gestionar etapas
         </Button>
       </header>
 
-      <div className="flex-1 overflow-x-auto p-4">
+      {/* El tablero se arrastra en horizontal; en el teléfono cada columna
+          se detiene en su sitio (snap) para no quedar a medio camino. */}
+      <div className="flex-1 snap-x snap-mandatory overflow-x-auto p-3 sm:snap-none sm:p-4">
         <DndContext
           sensors={sensors}
           onDragStart={onDragStart}
@@ -127,7 +129,7 @@ function StageColumn({ stage, leads }: { stage: StageDto; leads: BoardLead[] }) 
     <div
       ref={setNodeRef}
       className={cn(
-        "flex h-full w-64 shrink-0 flex-col rounded-lg border bg-card/50",
+        "flex h-full w-64 shrink-0 snap-start flex-col rounded-lg border bg-card/50",
         isOver && "ring-2 ring-primary/60"
       )}
     >
