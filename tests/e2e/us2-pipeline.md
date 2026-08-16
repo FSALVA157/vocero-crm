@@ -27,7 +27,29 @@
    las anclas ganado/perdido no se pueden eliminar.
 7. Eliminar "Cotizado" (vacía) → desaparece.
 
+## Bitácora de etapas
+
+Automatizado en `scripts/e2e-bitacora-etapas.mjs`. El tablero dice dónde está
+cada lead HOY; la bitácora es lo que permite preguntar qué pasó antes.
+
+8. **Nace con su evento**: provocar un entrante de un número nuevo.
+   ✅ El lead aparece en la primera etapa y su primer movimiento queda
+   registrado (sin etapa de origen).
+9. **Mover deja renglón**: arrastrar la tarjeta a otra columna.
+   ✅ Queda un movimiento con de-dónde, a-dónde, cuándo y quién lo movió.
+   ✅ Reordenar dentro de la MISMA columna no inventa un movimiento.
+10. **Perder exige motivo**: arrastrar a la etapa perdida.
+    ✅ Se abre el diálogo. Si se cancela, la tarjeta ni se movió.
+    ✅ Por API sin motivo → **422** `loss_reason_required`, y el lead se queda
+    donde estaba.
+    ✅ Con motivo → el motivo y la nota quedan en la bitácora.
+    ✅ Un INSERT directo en la base de un movimiento a "perdido" sin motivo lo
+    rechaza el CHECK `lse_loss_reason_ck`: la regla no depende de la ruta.
+11. **Todos los caminos pasan por la puerta**: `POST /api/bot/reset` deja su
+    movimiento como `sistema`, y eliminar una etapa con reubicación deja un
+    evento por cada lead reubicado.
+
 ## Contactos (FR-013)
 
-8. Buscar por "Frio" → filtra; editar notas → persiste; archivar → desaparece
-   de la lista (visible con "Ver archivados"); desarchivar → vuelve.
+12. Buscar por "Frio" → filtra; editar notas → persiste; archivar → desaparece
+    de la lista (visible con "Ver archivados"); desarchivar → vuelve.

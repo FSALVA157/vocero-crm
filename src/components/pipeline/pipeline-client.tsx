@@ -14,12 +14,13 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { MessageSquareText, Settings2, Trophy, XCircle } from "lucide-react";
-import type { StageDto } from "@/lib/types";
+import type { LossReason, StageDto } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { ContactAvatar } from "@/components/avatar";
 import { Button } from "@/components/ui/button";
 import { formatTime } from "@/components/inbox/helpers";
 import { StageManager } from "./stage-manager";
+import { LossReasonDialog } from "./loss-reason-dialog";
 
 export type BoardLead = {
   id: string;
@@ -35,6 +36,12 @@ export function PipelineClient() {
   const [leads, setLeads] = useState<BoardLead[]>([]);
   const [activeLead, setActiveLead] = useState<BoardLead | null>(null);
   const [managing, setManaging] = useState(false);
+  /** Arrastre hacia una etapa perdida, esperando el motivo. */
+  const [pendingLoss, setPendingLoss] = useState<{
+    leadId: string;
+    stageId: string;
+    name: string;
+  } | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
@@ -57,14 +64,11 @@ export function PipelineClient() {
     setActiveLead(lead ?? null);
   }
 
-  async function onDragEnd(event: DragEndEvent) {
-    setActiveLead(null);
-    const leadId = String(event.active.id);
-    const overStage = event.over ? String(event.over.id) : null;
-    if (!overStage) return;
-    const lead = leads.find((l) => l.id === leadId);
-    if (!lead || lead.stageId === overStage) return;
-
+  async function moverLead(
+    leadId: string,
+    overStage: string,
+    loss?: { reason: LossReason; note: string }
+  ) {
     const position = leads.filter((l) => l.stageId === overStage).length;
     // Optimista + persistencia
     setLeads((prev) =>
@@ -73,9 +77,34 @@ export function PipelineClient() {
     await fetch(`/api/pipeline/leads/${leadId}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ stageId: overStage, position }),
+      body: JSON.stringify({
+        stageId: overStage,
+        position,
+        ...(loss
+          ? { lossReason: loss.reason, ...(loss.note ? { lossNote: loss.note } : {}) }
+          : {}),
+      }),
     }).catch(() => null);
     void refetch();
+  }
+
+  async function onDragEnd(event: DragEndEvent) {
+    setActiveLead(null);
+    const leadId = String(event.active.id);
+    const overStage = event.over ? String(event.over.id) : null;
+    if (!overStage) return;
+    const lead = leads.find((l) => l.id === leadId);
+    if (!lead || lead.stageId === overStage) return;
+
+    // Perder un trato exige motivo. Se pregunta ANTES de mover: si el dueño
+    // cancela, la tarjeta ni siquiera parpadea fuera de su columna.
+    const destino = stages.find((s) => s.id === overStage);
+    if (destino?.kind === "lost") {
+      setPendingLoss({ leadId, stageId: overStage, name: lead.contact.name });
+      return;
+    }
+
+    await moverLead(leadId, overStage);
   }
 
   return (
@@ -117,6 +146,18 @@ export function PipelineClient() {
           stages={stages}
           onClose={() => setManaging(false)}
           onChanged={() => void refetch()}
+        />
+      )}
+
+      {pendingLoss && (
+        <LossReasonDialog
+          leadName={pendingLoss.name}
+          onCancel={() => setPendingLoss(null)}
+          onConfirm={(reason, note) => {
+            const { leadId, stageId } = pendingLoss;
+            setPendingLoss(null);
+            void moverLead(leadId, stageId, { reason, note });
+          }}
         />
       )}
     </div>

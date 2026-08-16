@@ -1,6 +1,7 @@
 import { and, asc, eq, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
+import { recordLeadCreated } from "@/server/leads/stage-history";
 
 /**
  * Actividad de lead al recibir un mensaje (US2): si el contacto no tiene lead,
@@ -51,7 +52,7 @@ export async function onLeadActivity(
       )
     );
 
-  await db
+  const creado = await db
     .insert(schema.lead)
     .values({
       id: newId("lead"),
@@ -61,5 +62,21 @@ export async function onLeadActivity(
       position: (maxPos[0]?.max ?? -1) + 1,
       lastActivityAt: at,
     })
-    .onConflictDoNothing({ target: [schema.lead.contactId] });
+    .onConflictDoNothing({ target: [schema.lead.contactId] })
+    .returning({ id: schema.lead.id });
+
+  // El nacimiento del lead es el primer evento del embudo: sin él, "prospectos
+  // que entraron en el periodo" no se podría contar desde la bitácora. Va
+  // DENTRO del `if (creado)` porque `onConflictDoNothing` no devuelve fila
+  // cuando otro webhook simultáneo ganó la carrera — y ese ya anotó el suyo.
+  if (creado[0]) {
+    await recordLeadCreated({
+      organizationId,
+      leadId: creado[0].id,
+      contactId,
+      stageId: firstStage[0].id,
+      occurredAt: at,
+      source: "sistema",
+    });
+  }
 }

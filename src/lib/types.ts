@@ -78,3 +78,29 @@ export type ContactDto = {
   stageName: string | null;
   archivedAt: string | null;
 };
+
+/* ============================================================
+ * Bitácora de etapas
+ * ============================================================ */
+
+/** Por qué se perdió un trato. Lista corta a propósito: una taxonomía larga
+ *  se responde "otro" y deja de informar. */
+export type LossReason =
+  | "precio"
+  | "no_es_perfil"
+  | "sin_presupuesto"
+  | "eligio_otro"
+  | "nunca_contesto"
+  | "otro";
+
+export const LOSS_REASON_LABEL: Record<LossReason, string> = {
+  precio: "Le pareció caro",
+  no_es_perfil: "No era el perfil",
+  sin_presupuesto: "Sin presupuesto ahora",
+  eligio_otro: "Se fue con otro",
+  nunca_contesto: "Nunca contestó",
+  otro: "Otro",
+};
+
+/** Quién provocó un movimiento de etapa. */
+export type StageChangeSource = "dueno" | "bot" | "sistema" | "migracion";

@@ -4,6 +4,7 @@ import { getDb, schema } from "@/lib/db";
 import { apiError, parseBody } from "@/lib/api";
 import { requireBotKey, resolveInstanceOrg } from "@/server/bot/auth";
 import { publish } from "@/server/events/bus";
+import { moveLeadToStage } from "@/server/leads/stage-history";
 
 export const dynamic = "force-dynamic";
 
@@ -74,10 +75,15 @@ export async function POST(req: Request) {
       )
       .limit(1);
     if (first && leadRows[0]) {
-      await db
-        .update(schema.lead)
-        .set({ stageId: first.id, updatedAt: new Date() })
-        .where(eq(schema.lead.id, leadRows[0].id));
+      // Por la puerta única: devolver la conversación de pruebas al inicio
+      // también es un movimiento, y la bitácora tiene que poder explicar por
+      // qué un lead retrocedió de etapa.
+      await moveLeadToStage({
+        organizationId,
+        leadId: leadRows[0].id,
+        toStageId: first.id,
+        source: "sistema",
+      });
     }
   } catch (err) {
     console.warn(`[bot/reset] reinicio de etapa falló: ${err}`);

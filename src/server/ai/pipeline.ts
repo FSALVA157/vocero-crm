@@ -1,6 +1,8 @@
 import { asc, desc, eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
+import { scoped } from "@/lib/db/tenant";
+import { moveLeadToStage as moveLeadThroughHistory } from "@/server/leads/stage-history";
 import { getEnv, isAiConfigured } from "@/lib/env";
 import { chatJson, type ChatMessage } from "@/lib/ai";
 import { publish } from "@/server/events/bus";
@@ -280,10 +282,33 @@ async function moveLeadToStage(
   stageId: string
 ): Promise<void> {
   const db = getDb();
-  await db
-    .update(schema.lead)
-    .set({ stageId, updatedAt: new Date(), lastActivityAt: new Date() })
-    .where(eq(schema.lead.contactId, contactId));
+  const rows = await db
+    .select({ id: schema.lead.id })
+    .from(schema.lead)
+    .where(
+      scoped(
+        schema.lead.organizationId,
+        organizationId,
+        eq(schema.lead.contactId, contactId)
+      )
+    )
+    .limit(1);
+  const leadId = rows[0]?.id;
+  if (!leadId) return;
+
+  // Por la puerta única: el agente mueve tarjetas igual que el dueño, y su
+  // movimiento tiene que quedar en la bitácora o el embudo mentirá sobre
+  // quién hizo avanzar cada lead.
+  await moveLeadThroughHistory({
+    organizationId,
+    leadId,
+    toStageId: stageId,
+    source: "bot",
+    extra: { lastActivityAt: new Date() },
+    // El agente no clasifica pérdidas: si su etapa destino resultara ser la
+    // perdida, la puerta lo rechaza y el lead se queda donde está — mejor eso
+    // que un motivo inventado.
+  });
 }
 
 async function appendLeadNote(
