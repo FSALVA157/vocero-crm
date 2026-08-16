@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useRef, useState } from "react";
 import {
@@ -98,10 +98,12 @@ export function Composer({
   }
 
   async function submit() {
-    if (sending) return;
     setError(null);
 
     if (file) {
+      // El adjunto sí espera: sube el archivo y no tiene sentido encolar otro
+      // mientras tanto.
+      if (sending) return;
       setSending(true);
       const form = new FormData();
       form.set("file", file);
@@ -125,15 +127,21 @@ export function Composer({
 
     const value = text.trim();
     if (!value) return;
-    setSending(true);
-    const err = await onSend(value);
-    setSending(false);
-    if (err) {
-      setError(err);
-      return;
-    }
+    // Aquí NO se espera al servidor. Enviar tarda ~1.5 s (el viaje a Meta) y
+    // durante ese rato el renglón siguiente se escribía encima del anterior y
+    // salía todo como un solo mensaje. El campo se limpia ya; la burbuja
+    // "enviando" del hilo es la que informa el estado real.
     setText("");
     if (taRef.current) taRef.current.style.height = "auto";
+    const err = await onSend(value);
+    if (err) {
+      setError(err);
+      // Lo que no salió vuelve al campo. Si ya empezaste a escribir otra cosa
+      // se antepone en vez de pisarte: nada se pierde en silencio.
+      setText((actual) => (actual ? `${value}\n${actual}` : value));
+      taRef.current?.focus();
+      setTimeout(autogrow, 0);
+    }
   }
 
   async function submitLocation() {
@@ -192,7 +200,7 @@ export function Composer({
   if (!conversation.windowOpen) {
     return (
       <div className="border-t bg-background px-[18px] py-3.5">
-        <div className="mb-3 flex items-start gap-2 rounded-md border border-[#ece2cf] bg-[#faf7f0] p-3 text-sm text-[#8a6d3b]">
+        <div className="mb-3 flex items-start gap-2 rounded-md border border-warning-soft bg-warning-tint p-3 text-sm text-warning-text">
           <Clock3 className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={1.7} />
           <div>
             <p className="font-medium">La ventana de 24 horas está cerrada.</p>
@@ -276,14 +284,14 @@ export function Composer({
             <input
               value={placeName}
               onChange={(e) => setPlaceName(e.target.value)}
-              placeholder="Oficina Central"
+              placeholder="Oficina AISHIA"
               className="mt-1 w-full rounded border bg-background px-2 py-1.5 text-sm outline-none focus:border-brand"
             />
           </label>
           <button
             onClick={() => void submitLocation()}
             disabled={sending}
-            className="rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-40"
+            className="rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-brand-fg hover:bg-brand-hover disabled:opacity-40"
           >
             Enviar ubicación
           </button>
@@ -320,7 +328,7 @@ export function Composer({
           <button
             onClick={() => void submitContact()}
             disabled={sending}
-            className="rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-40"
+            className="rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-brand-fg hover:bg-brand-hover disabled:opacity-40"
           >
             Enviar contacto
           </button>
@@ -395,7 +403,7 @@ export function Composer({
           disabled={sending || !canSubmit}
           aria-label="Enviar"
           className={cn(
-            "flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[9px] bg-brand text-white transition-opacity hover:bg-brand-hover",
+            "flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[9px] bg-brand text-brand-fg transition-opacity hover:bg-brand-hover",
             (sending || !canSubmit) && "opacity-40"
           )}
         >
