@@ -79,6 +79,8 @@ export type ContactDto = {
   archivedAt: string | null;
   /** De dónde salió el prospecto, capturada o deducida. */
   source?: SourceDto;
+  /** Prioridad del lead asociado; null si nadie la fijó. */
+  priority?: PriorityValue | null;
 };
 
 /* ============================================================
@@ -124,3 +126,10 @@ export type SourceDto = {
   /** `deducida` = la infirió el sistema; `capturada` = la puso el dueño. */
   source: "capturada" | "deducida";
 };
+
+/* ============================================================
+ * Prioridad del lead
+ * ============================================================ */
+
+/** La fija el dueño; NULL = nadie la ha decidido (no es "media"). */
+export type PriorityValue = "alta" | "media" | "baja";

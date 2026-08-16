@@ -19,6 +19,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { SOURCE_LABELS } from "@/server/contact-source";
+import { priorityRank } from "@/server/leads/priority";
+import { PriorityBadge } from "@/components/pipeline/priority-picker";
 import { NewContactDialog } from "./new-contact-dialog";
 import { StartConversation } from "./start-conversation";
 
@@ -58,7 +60,14 @@ export function ContactsClient() {
     const res = await fetch(`/api/contacts?${params}`).catch(() => null);
     if (!res?.ok) return;
     const data = (await res.json()) as { contacts: ContactDto[] };
-    setContacts(data.contacts);
+    // A quién llamar primero: alta arriba, sin prioridad al final. El orden lo
+    // decide esta lista, no el servidor, porque es una preferencia de trabajo y
+    // no un dato del contacto.
+    setContacts(
+      [...data.contacts].sort(
+        (a, b) => priorityRank(a.priority ?? null) - priorityRank(b.priority ?? null)
+      )
+    );
   }, [query, stage, showArchived]);
 
   useEffect(() => {
@@ -162,6 +171,7 @@ export function ContactsClient() {
                     <span className="truncate text-sm font-medium">
                       {c.name}
                     </span>
+                    {c.priority && <PriorityBadge value={c.priority} />}
                     {c.stageName && (
                       <Badge variant="outline">{c.stageName}</Badge>
                     )}

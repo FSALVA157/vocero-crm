@@ -43,6 +43,8 @@ const patchSchema = z.object({
    */
   amountCents: z.number().int().min(0).max(1_000_000_000_00).nullable().optional(),
   currency: z.string().length(3).nullable().optional(),
+  /** `null` explícito la quita; ausente la deja como estaba. */
+  priority: z.enum(["alta", "media", "baja"]).nullable().optional(),
 });
 
 export const PATCH = withAuth(async (session, req: Request, ctx: Params) => {
@@ -62,6 +64,13 @@ export const PATCH = withAuth(async (session, req: Request, ctx: Params) => {
       body.data.amountCents === null
         ? null
         : (body.data.currency ?? (await getBranding(session.organizationId)).currency);
+  }
+
+  if (body.data.priority !== undefined) {
+    extra.priority = body.data.priority;
+    // La fecha acompaña al valor: sirve para saber si la decisión es de hoy o
+    // de hace tres semanas, que es lo que vuelve útil mirarla.
+    extra.priorityUpdatedAt = body.data.priority === null ? null : new Date();
   }
 
   // Sin etapa: solo se actualizan los campos del lead. No pasa por la puerta

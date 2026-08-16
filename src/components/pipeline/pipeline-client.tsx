@@ -14,7 +14,7 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { MessageSquareText, Settings2, Trophy, XCircle } from "lucide-react";
-import type { LossReason, StageDto } from "@/lib/types";
+import type { LossReason, PriorityValue, StageDto } from "@/lib/types";
 import { formatMoneyCents, sumable } from "@/lib/money";
 import { cn } from "@/lib/utils";
 import { ContactAvatar } from "@/components/avatar";
@@ -23,6 +23,7 @@ import { formatTime } from "@/components/inbox/helpers";
 import { StageManager } from "./stage-manager";
 import { LossReasonDialog } from "./loss-reason-dialog";
 import { AmountDialog } from "./amount-dialog";
+import { PriorityBadge } from "./priority-picker";
 
 export type BoardLead = {
   id: string;
@@ -33,6 +34,7 @@ export type BoardLead = {
   conversationId: string | null;
   amountCents: number | null;
   currency: string | null;
+  priority: PriorityValue | null;
 };
 
 export function PipelineClient() {
@@ -113,6 +115,18 @@ export function PipelineClient() {
     void refetch();
   }
 
+  async function guardarPrioridad(leadId: string, priority: PriorityValue | null) {
+    setLeads((prev) =>
+      prev.map((l) => (l.id === leadId ? { ...l, priority } : l))
+    );
+    await fetch(`/api/pipeline/leads/${leadId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ priority }),
+    }).catch(() => null);
+    void refetch();
+  }
+
   async function onDragEnd(event: DragEndEvent) {
     setActiveLead(null);
     const leadId = String(event.active.id);
@@ -183,6 +197,11 @@ export function PipelineClient() {
           leadName={editandoMonto.contact.name}
           currency={editandoMonto.currency ?? currency}
           amountCents={editandoMonto.amountCents}
+          priority={editandoMonto.priority}
+          onPriorityChange={(p) => {
+            setEditandoMonto({ ...editandoMonto, priority: p });
+            void guardarPrioridad(editandoMonto.id, p);
+          }}
           onCancel={() => setEditandoMonto(null)}
           onSave={(cents) => {
             const leadId = editandoMonto.id;
@@ -354,7 +373,10 @@ function LeadCard({
       <div className="flex items-center gap-2.5">
         <ContactAvatar name={lead.contact.name} seed={lead.contact.id} size="sm" />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium">{lead.contact.name}</p>
+          <div className="flex items-center gap-1.5">
+            <p className="truncate text-sm font-medium">{lead.contact.name}</p>
+            {lead.priority && <PriorityBadge value={lead.priority} />}
+          </div>
           <p className="text-[11px] text-muted-foreground">
             {lead.lastActivityAt
               ? `Actividad: ${formatTime(lead.lastActivityAt)}`
