@@ -193,7 +193,7 @@ export function MessageThread({ messages }: { messages: MessageDto[] }) {
   return (
     <div
       ref={scrollRef}
-      className="flex flex-1 flex-col gap-[3px] overflow-y-auto bg-chat px-[6%] py-5"
+      className="flex flex-1 flex-col gap-[3px] overflow-y-auto bg-chat px-3 py-5 sm:px-[6%]"
     >
       {messages.map((m, i) => {
         const prev = messages[i - 1];
@@ -223,7 +223,9 @@ export function MessageThread({ messages }: { messages: MessageDto[] }) {
             >
               <div
                 className={cn(
-                  "max-w-[64%] rounded-lg px-3 pb-1.5 pt-2 text-sm leading-[1.45] shadow-sm",
+                  // En el teléfono la burbuja necesita casi todo el renglón:
+                  // con 64% cada mensaje se parte en tres líneas.
+                  "max-w-[85%] rounded-lg px-3 pb-1.5 pt-2 text-sm leading-[1.45] shadow-sm sm:max-w-[64%]",
                   out
                     ? "border border-brand-soft bg-bubble-out text-bubble-out-text"
                     : "bg-background",

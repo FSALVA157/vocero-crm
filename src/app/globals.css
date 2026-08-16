@@ -162,6 +162,21 @@
   }
 }
 
+/*
+  Safari en iOS hace zoom a la página cuando enfocas un campo cuya tipografía
+  mide menos de 16px, y luego no la devuelve: escribir en la Bandeja dejaba el
+  CRM descuadrado. Por debajo de `md` subimos el mínimo de TODO campo de texto
+  (los `select` quedan fuera: abren su propia rueda nativa y varios viven como
+  chips angostos). Va con `!important` a propósito — compite contra utilidades
+  de Tailwind (`text-sm`, `text-xs`) que ganan por especificidad de clase.
+*/
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

@@ -90,11 +90,11 @@ export function StageManager({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-overlay p-4"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-lg rounded-lg border bg-card p-5 shadow-xl"
+        className="max-h-[85dvh] w-full max-w-lg overflow-y-auto rounded-lg border bg-card p-5 shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <h3 className="mb-4 font-semibold">Etapas del pipeline</h3>

@@ -11,6 +11,7 @@ import {
   Settings,
   Sparkles,
   Users,
+  X,
 } from "lucide-react";
 import type { Branding } from "@/lib/branding";
 import type { ThemePreference } from "@/lib/theme";
@@ -32,11 +33,16 @@ export function AppNav({
   userName,
   role,
   theme,
+  open = false,
+  onClose,
 }: {
   branding: Branding;
   userName: string;
   role: string;
   theme: ThemePreference;
+  /** Solo aplica por debajo de `lg`: en escritorio el lateral es fijo. */
+  open?: boolean;
+  onClose?: () => void;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -61,9 +67,29 @@ export function AppNav({
   });
 
   return (
-    <aside className="flex w-56 shrink-0 flex-col border-r bg-subtle px-3 pb-3.5 pt-4">
+    <aside
+      // Móvil: cajón que se desliza desde la izquierda (siempre montado, así
+      // la transición corre en ambos sentidos). Escritorio: columna fija.
+      // `visibility` va en la transición a propósito: al cerrar mantiene el
+      // cajón visible mientras se desliza y recién entonces lo oculta, que es
+      // lo que lo saca del orden de tabulación en móvil.
+      className={cn(
+        "fixed inset-y-0 left-0 z-50 flex w-[17rem] shrink-0 flex-col overflow-y-auto border-r bg-subtle px-3 pb-3.5 pt-4 transition-[transform,visibility] duration-200",
+        "lg:static lg:visible lg:z-auto lg:w-56 lg:translate-x-0 lg:overflow-visible lg:transition-none",
+        open ? "visible translate-x-0 shadow-pop" : "invisible -translate-x-full"
+      )}
+    >
       {/* Brand white-label */}
       <div className="mb-4 flex items-center gap-2.5 px-2">
+        {/* En móvil el cajón necesita su propio cierre: el velo no siempre es
+            alcanzable con el pulgar. */}
+        <button
+          onClick={onClose}
+          aria-label="Cerrar el menú"
+          className="-ml-1 rounded-md p-1.5 text-text-3 hover:bg-accent hover:text-foreground lg:hidden"
+        >
+          <X className="h-[18px] w-[18px]" strokeWidth={1.8} />
+        </button>
         <span
           className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-sm bg-brand text-[15px] font-bold text-brand-fg"
           aria-hidden
@@ -87,7 +113,7 @@ export function AppNav({
               key={item.href}
               href={item.href}
               className={cn(
-                "flex items-center gap-[11px] rounded-sm px-2.5 py-2 text-sm font-medium transition-colors",
+                "flex items-center gap-[11px] rounded-sm px-2.5 py-2.5 text-sm font-medium transition-colors lg:py-2",
                 active
                   ? "bg-brand-tint font-semibold text-brand-text"
                   : "text-text-2 hover:bg-accent"
