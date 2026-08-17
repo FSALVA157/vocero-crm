@@ -105,6 +105,29 @@ Automatizado en `scripts/e2e-prioridad.mjs`. A quién llamar primero.
     lista de Contactos, que además ordena alta primero y deja al final a quien
     no tiene prioridad.
 
+## El trato, abierto desde el tablero
+
+Conducido con Playwright (MCP). No trae guion automatizado propio a propósito:
+el cajón no agrega comportamiento de servidor — usa los mismos endpoints que ya
+cubren `e2e-monto-pipeline`, `e2e-prioridad`, `e2e-bitacora-etapas` y
+`e2e-ficha-lead`. Lo que se verifica aquí es el cableado.
+
+22. **Clic en la tarjeta** (en el cuerpo, no en un control).
+    ✅ Abre un cajón con quién es, monto, prioridad, etapa y ficha, sin salir
+    del tablero.
+    ✅ **Arrastrar sigue funcionando**: el sensor solo activa el arrastre a los
+    6 px, así que un clic quieto nunca llega a serlo.
+    ✅ Y soltar tras arrastrar **no** abre el cajón.
+    ✅ Tocar "+ monto" en la tarjeta abre su diálogo y NO además el cajón.
+    ✅ Escape lo cierra; en móvil ocupa 345 px de 375 sin scroll horizontal.
+23. **Se edita desde dentro** y el tablero lo refleja al instante.
+    ✅ Prioridad, monto y etapa se guardan sin cerrar el cajón.
+    ✅ El cajón lee del tablero, no de una copia: lo que se cambia se ve.
+24. **Perder exige motivo también desde aquí.** Es la misma puerta que el
+    arrastre, no una segunda regla que se puede olvidar.
+    ✅ Mover a la etapa perdida abre el diálogo de motivo por encima del cajón.
+    ✅ Si se cancela, el lead se queda donde estaba y el cajón sigue abierto.
+
 ## Contactos (FR-013)
 
 22. Buscar por "Frio" → filtra; editar notas → persiste; archivar → desaparece
