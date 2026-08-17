@@ -1,10 +1,13 @@
 import { eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { scoped } from "@/lib/db/tenant";
+import { effectiveSource } from "@/server/contact-source";
+import type { PriorityValue } from "@/lib/types";
 
 export function serializeContact(
   c: typeof schema.contact.$inferSelect,
-  stageName: string | null = null
+  stageName: string | null = null,
+  priority: PriorityValue | null = null
 ) {
   return {
     id: c.id,
@@ -13,6 +16,8 @@ export function serializeContact(
     notes: c.notes,
     stageName,
     archivedAt: c.archivedAt?.toISOString() ?? null,
+    source: effectiveSource(c.source),
+    priority,
   };
 }
 

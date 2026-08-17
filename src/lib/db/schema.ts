@@ -132,6 +132,14 @@ export const contact = pgTable(
      * Merge campo a campo; `null` explícito borra la clave.
      */
     ficha: jsonb("ficha").$type<Record<string, unknown>>(),
+    /**
+     * De dónde salió el prospecto. NULL = nadie la capturó, y entonces la API
+     * la deduce. Así no hace falta backfill ni marcar en falso los contactos
+     * que ya existían.
+     */
+    source: text("source", {
+      enum: ["anuncio", "organico", "referido", "conocido", "otro"],
+    }),
     archivedAt: timestamp("archived_at"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -175,6 +183,21 @@ export const lead = pgTable(
       .notNull()
       .references(() => pipelineStage.id),
     position: integer("position").notNull().default(0),
+    /**
+     * Monto de la negociación en CENTAVOS ENTEROS. NULL = nadie lo capturó, que
+     * no es lo mismo que cero: un trato sin monto no vale $0, simplemente no se
+     * sabe, y el tablero lo dice con palabras en vez de sumar un cero.
+     */
+    amountCents: integer("amount_cents"),
+    /** Moneda del monto; la del negocio al capturarlo (Ajustes → Marca). */
+    currency: text("currency"),
+    /**
+     * Prioridad de cierre. NULL = nadie la ha decidido, que NO es lo mismo que
+     * "media": nada la escribe automáticamente, así que el dueño puede confiar
+     * en que lo que ve es lo que él puso.
+     */
+    priority: text("priority", { enum: ["alta", "media", "baja"] }),
+    priorityUpdatedAt: timestamp("priority_updated_at"),
     lastActivityAt: timestamp("last_activity_at"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
