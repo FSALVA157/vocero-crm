@@ -19,17 +19,36 @@ export type AccentSet = {
 /** El acento se deriva distinto según el tema activo. */
 export type ThemeMode = "light" | "dark";
 
+/**
+ * Icono subido. Solo el tipo y una versión: el binario vive en el volumen de
+ * medios, porque `organization.metadata` se lee en CADA render de página y
+ * meter ahí un archivo en base64 haría pagar ese peso en todas.
+ */
+export type BrandingFavicon = {
+  mime: string;
+  /**
+   * Marca de tiempo de la carga. Es lo que hace que el navegador suelte el
+   * icono anterior. No es un contador a propósito: al quitar el icono no queda
+   * dónde recordar por cuál íbamos, y reiniciar en 1 repetiría una URL ya
+   * cacheada con OTRO logo dentro.
+   */
+  version: number;
+};
+
 export type Branding = {
   name: string;
   accent: string; // hex del acento base elegido
   /** Moneda del negocio: la única que el tablero suma. */
   currency: Currency;
+  /** `null` = se dibuja con la inicial sobre el acento (ver `lib/favicon`). */
+  favicon: BrandingFavicon | null;
 };
 
 export const DEFAULT_BRANDING: Branding = {
   name: "Vocero",
   accent: "#3f5972",
   currency: DEFAULT_CURRENCY,
+  favicon: null,
 };
 
 /** Presets del handoff (valores exactos). */
@@ -189,5 +208,12 @@ export function normalizeBranding(input: Partial<Branding> | null): Branding {
   const currency = isCurrency(input?.currency)
     ? input.currency
     : DEFAULT_BRANDING.currency;
-  return { name, accent, currency };
+  // El icono no se toca desde el formulario de marca: se sube y se quita por
+  // su propia ruta. Un PUT de nombre/color no debe borrarlo de rebote.
+  const f = input?.favicon;
+  const favicon =
+    f && typeof f.mime === "string" && Number.isFinite(f.version)
+      ? { mime: f.mime, version: Math.max(1, Math.floor(f.version)) }
+      : null;
+  return { name, accent, currency, favicon };
 }
