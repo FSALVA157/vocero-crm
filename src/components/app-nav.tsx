@@ -19,6 +19,7 @@ import { cn, initials } from "@/lib/utils";
 import { signOut } from "@/lib/auth/client";
 import { useEvents } from "@/components/use-events";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { APP_VERSION, BUILD_COMMIT, versionLabel } from "@/lib/version";
 
 const NAV = [
   { href: "/inbox", label: "Bandeja", icon: Inbox, badge: true },
@@ -184,6 +185,22 @@ export function AppNav({
           <LogOut className="h-4 w-4" strokeWidth={1.7} />
         </button>
       </div>
+
+      {/* Qué versión está corriendo. Discreta pero siempre visible: la duda
+          "¿ya se desplegó?" aparece justo cuando algo no funciona, y mandar a
+          alguien a comparar commits en el servidor significa que no lo hará. */}
+      {/* `text-2` y no `text-3`: a 11px, el gris más claro se queda en 3.2:1
+          contra el fondo de la barra y no pasa AA. Discreta sí, ilegible no. */}
+      <p
+        className="mt-1.5 px-2.5 text-[11px] tabular-nums text-text-2"
+        title={
+          BUILD_COMMIT
+            ? `Vocero ${APP_VERSION}, construido del commit ${BUILD_COMMIT}`
+            : `Vocero ${APP_VERSION}`
+        }
+      >
+        {versionLabel()}
+      </p>
     </aside>
   );
 }

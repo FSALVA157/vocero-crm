@@ -312,6 +312,32 @@ y se ve en `ps`.
 Debe responder `UPDATE 1`. Si responde `UPDATE 0`, el correo no coincide;
 míralos con `SELECT email FROM "user";`.
 
+## Versiones
+
+La versión que está corriendo se ve **abajo en la barra lateral** (`v1.1.0 ·
+8e62d0b`) y en el healthcheck, para poder confirmar un despliegue con un
+`curl` sin abrir la app:
+
+```bash
+curl -s https://crm.tudominio.com/api/health
+# {"ok":true,"version":"1.1.0","commit":"8e62d0b"}
+```
+
+Los dos valores se congelan al **construir**, así que no pueden mentir en
+tiempo de ejecución. El commit lo inyecta Coolify solo; con docker compose se
+pasa con `--build-arg SOURCE_COMMIT=$(git rev-parse HEAD)`, y si falta se ve
+solo la versión.
+
+SemVer sobre lo que le importa a quien opera una instancia:
+
+| | Cuándo sube |
+|---|---|
+| **Mayor** (`2.0.0`) | Hay que hacer algo a mano para actualizar: cambiar una variable de entorno, migrar datos, reconectar algo. |
+| **Menor** (`1.2.0`) | Funciones nuevas. Actualizar es redesplegar. |
+| **Parche** (`1.1.1`) | Arreglos y ajustes. Actualizar es redesplegar. |
+
+La versión vive en `package.json` y se sube en el PR que publica el cambio.
+
 ## Roadmap
 
 - Multimedia completa en la bandeja (hoy: indicador de tipo).
