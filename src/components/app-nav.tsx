@@ -191,12 +191,15 @@ export function AppNav({
           alguien a comparar commits en el servidor significa que no lo hará. */}
       {/* `text-2` y no `text-3`: a 11px, el gris más claro se queda en 3.2:1
           contra el fondo de la barra y no pasa AA. Discreta sí, ilegible no. */}
+      {/* El nombre sale de la marca, no de una constante: esto es white-label,
+          y una instancia rebautizada que dice "Vocero" en el tooltip delata el
+          producto de debajo justo donde el operador la mira todos los días. */}
       <p
         className="mt-1.5 px-2.5 text-[11px] tabular-nums text-text-2"
         title={
           BUILD_COMMIT
-            ? `Vocero ${APP_VERSION}, construido del commit ${BUILD_COMMIT}`
-            : `Vocero ${APP_VERSION}`
+            ? `${branding.name} ${APP_VERSION}, construido del commit ${BUILD_COMMIT}`
+            : `${branding.name} ${APP_VERSION}`
         }
       >
         {versionLabel()}

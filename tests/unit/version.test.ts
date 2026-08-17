@@ -27,6 +27,19 @@ describe("versión de la app", () => {
     expect(config).not.toMatch(/["']\d+\.\d+\.\d+["']/);
   });
 
+  it("la insignia no cablea el nombre del producto", () => {
+    // Esto es white-label: una instancia rebautizada que dice "Vocero" en el
+    // tooltip delata el producto de debajo justo donde el operador la mira
+    // todos los días.
+    const nav = readFileSync(
+      path.join(RAIZ, "src", "components", "app-nav.tsx"),
+      "utf8"
+    );
+    const insignia = nav.slice(nav.indexOf("versionLabel()") - 600);
+    expect(insignia).toContain("branding.name");
+    expect(insignia).not.toMatch(/`Vocero \$\{/);
+  });
+
   it("el Dockerfile acepta el commit sin exigirlo", () => {
     const dockerfile = readFileSync(path.join(RAIZ, "Dockerfile"), "utf8");
     expect(dockerfile).toContain("ARG SOURCE_COMMIT");
