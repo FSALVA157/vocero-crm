@@ -34,6 +34,7 @@ export function AppNav({
   userName,
   role,
   theme,
+  commit,
   open = false,
   onClose,
 }: {
@@ -41,6 +42,11 @@ export function AppNav({
   userName: string;
   role: string;
   theme: ThemePreference;
+  /**
+   * Commit resuelto en el servidor. Gana al de build porque puede venir de la
+   * plataforma cuando quien construyó no lo pasó como build-arg.
+   */
+  commit?: string;
   /** Solo aplica por debajo de `lg`: en escritorio el lateral es fijo. */
   open?: boolean;
   onClose?: () => void;
@@ -66,6 +72,8 @@ export function AppNav({
     onMessageNew: () => void refetchUnread(),
     onConversationUpdated: () => void refetchUnread(),
   });
+
+  const sha = commit || BUILD_COMMIT;
 
   return (
     <aside
@@ -197,12 +205,12 @@ export function AppNav({
       <p
         className="mt-1.5 px-2.5 text-[11px] tabular-nums text-text-2"
         title={
-          BUILD_COMMIT
-            ? `${branding.name} ${APP_VERSION}, construido del commit ${BUILD_COMMIT}`
+          sha
+            ? `${branding.name} ${APP_VERSION}, construido del commit ${sha}`
             : `${branding.name} ${APP_VERSION}`
         }
       >
-        {versionLabel()}
+        {versionLabel(sha)}
       </p>
     </aside>
   );

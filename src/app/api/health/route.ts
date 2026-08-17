@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { APP_VERSION, BUILD_COMMIT } from "@/lib/version";
+import { APP_VERSION, resolveBuildCommit } from "@/lib/version";
 
 export const dynamic = "force-dynamic";
 
@@ -11,10 +11,11 @@ export async function GET() {
     // poder hacerse con un `curl`, desde un script o desde la plataforma de
     // hosting, sin abrir la app ni iniciar sesión. Es la única forma de que un
     // pipeline pueda comprobar que el build que subió es el que corre.
+    const commit = resolveBuildCommit();
     return Response.json({
       ok: true,
       version: APP_VERSION,
-      ...(BUILD_COMMIT ? { commit: BUILD_COMMIT } : {}),
+      ...(commit ? { commit } : {}),
     });
   } catch {
     return Response.json(
