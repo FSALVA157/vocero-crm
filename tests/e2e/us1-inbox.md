@@ -39,17 +39,40 @@ Automatizado en `scripts/e2e-envio-instantaneo.mjs`.
    ✅ Cuando el mensaje real llega, la burbuja provisional se retira sin dejar
    duplicado y sin parpadeo.
 
+## Ficha del lead
+
+Automatizado en `scripts/e2e-ficha-lead.mjs`. `PUT /api/bot/ficha` ya dejaba al
+agente guardar lo que averigua; sin esta sección era un cajón que se llenaba y
+no se abría.
+
+10. **Lo que sabe el agente se ve.** En el panel de detalles, bajo la etapa.
+    ✅ Las claves se leen bonito (`dolor_principal` → "Dolor principal") sin que
+    cambie lo guardado: renombrarlas rompería al agente, que las busca exactas.
+    ✅ Los booleanos se muestran Sí/No — nadie califica en `true`.
+    ✅ Aparece en vivo mientras el agente conversa, sin recargar.
+11. **Se puede corregir.** Un dato equivocado que el dueño ve pero no puede
+    arreglar enseña a desconfiar de toda la ficha.
+    ✅ Editar NO cambia el tipo: `presupuesto: 50000` corregido a "60000" sigue
+    siendo número, porque del otro lado hay un bot que puede estar comparando.
+    ✅ El bote de basura quita la clave; vaciar el campo NO la borra.
+12. **Nadie le pisa el trabajo al otro.** El agente sigue escribiendo mientras
+    el dueño corrige.
+    ✅ Es merge, no reemplazo: lo nuevo del agente entra sin borrar la
+    corrección, y viceversa.
+    ✅ Objetos y arreglos se ignoran en silencio en vez de tirar la ficha.
+    ✅ Un contacto de otra organización → **404**, no una escritura a ciegas.
+
 ## Caminos infelices
 
-10. **Dedup (SC-004)**: enviar dos veces el mismo `waMessageId` `wamid.dedup.1`.
+13. **Dedup (SC-004)**: enviar dos veces el mismo `waMessageId` `wamid.dedup.1`.
    ✅ El hilo muestra UNA sola vez el mensaje.
-11. **Ventana cerrada (SC-005)**: inbound de contacto nuevo con
+14. **Ventana cerrada (SC-005)**: inbound de contacto nuevo con
    `timestamp` de hace 25 horas → abrir su conversación.
    ✅ El composer está bloqueado con la explicación de la ventana y ofrece
    plantillas (estado vacío si no hay aprobadas).
    ✅ `POST /api/conversations/:id/messages` responde 409 `window_closed`.
-12. **Webhook segmento incorrecto**: `POST /api/webhooks/wa/token-falso` → 404
+15. **Webhook segmento incorrecto**: `POST /api/webhooks/wa/token-falso` → 404
     y no aparece nada nuevo en la bandeja.
-13. **Reconexión**: (cubierto por diseño: EventSource reconecta y el cliente
+16. **Reconexión**: (cubierto por diseño: EventSource reconecta y el cliente
     refetch-ea con el evento `open`; verificación funcional en el checkpoint
     de compose).

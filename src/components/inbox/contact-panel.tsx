@@ -3,11 +3,17 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Check, ChevronRight, Sparkles, UserRound } from "lucide-react";
-import type { ConversationDto, StageDto } from "@/lib/types";
+import type {
+  ConversationDto,
+  FichaDto,
+  FichaValue,
+  StageDto,
+} from "@/lib/types";
 import { cn, formatPhone } from "@/lib/utils";
 import { ContactAvatar } from "@/components/avatar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { FichaPanel } from "./ficha-panel";
 
 const HANDOFF_LABELS: Record<string, string> = {
   cliente: "El cliente pidió un humano",
@@ -33,6 +39,7 @@ export function ContactPanel({
   onClose: () => void;
 }) {
   const [notes, setNotes] = useState("");
+  const [ficha, setFicha] = useState<FichaDto>({});
   const [notesLoaded, setNotesLoaded] = useState(false);
   const [savingNotes, setSavingNotes] = useState(false);
   const [stages, setStages] = useState<StageDto[]>([]);
@@ -60,6 +67,7 @@ export function ContactPanel({
     ]).catch(() => [null, null, null]);
     if (detail) {
       setNotes(detail.contact?.notes ?? "");
+      setFicha(detail.contact?.ficha ?? {});
       setCurrentStageId(detail.stage?.id ?? null);
       setLeadId(detail.lead?.id ?? null);
     }
@@ -77,6 +85,10 @@ export function ContactPanel({
       fetch("/api/agent/profile").then((r) => (r.ok ? r.json() : null)),
     ]).catch(() => [null, null]);
     if (detail) {
+      // La ficha SÍ se refresca en vivo: el agente la va llenando mientras la
+      // conversación ocurre, y verla aparecer sola es justo para lo que sirve.
+      // No pisa una edición a medias — el borrador vive dentro del panel.
+      setFicha(detail.contact?.ficha ?? {});
       setCurrentStageId(detail.stage?.id ?? null);
       setLeadId(detail.lead?.id ?? null);
     }
@@ -103,6 +115,24 @@ export function ContactPanel({
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ stageId, position: 0 }),
+    }).catch(() => null);
+    void refreshLive();
+  }
+
+  /** Manda SOLO lo que cambió: el servidor hace merge (ver `server/bot/ficha`). */
+  async function saveFicha(patch: Record<string, FichaValue | null>) {
+    setFicha((prev) => {
+      const next = { ...prev };
+      for (const [k, v] of Object.entries(patch)) {
+        if (v === null) delete next[k];
+        else next[k] = v;
+      }
+      return next; // optimista: el refetch de abajo confirma
+    });
+    await fetch(`/api/contacts/${contactId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ficha: patch }),
     }).catch(() => null);
     void refreshLive();
   }
@@ -281,6 +311,10 @@ export function ContactPanel({
             </ol>
           </section>
         )}
+
+        {/* Ficha: lo que se SABE del lead. Va antes de Notas —lo que alguien
+            OPINA— porque es lo que se consulta a mitad de una conversación. */}
+        <FichaPanel ficha={ficha} onSave={saveFicha} />
 
         {/* Notas */}
         <section className="p-4">
