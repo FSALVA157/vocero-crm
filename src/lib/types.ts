@@ -68,6 +68,16 @@ export type StageDto = {
   kind: "open" | "won" | "lost";
 };
 
+/** Un dato de la ficha. Escalar a propósito: ver `server/bot/ficha`. */
+export type FichaValue = string | number | boolean;
+
+/**
+ * Ficha de calificación del lead. Claves libres: cada negocio califica
+ * distinto, así que las define quien pregunta —el agente o el dueño— y el CRM
+ * no las cablea.
+ */
+export type FichaDto = Record<string, FichaValue>;
+
 export type ContactDto = {
   id: string;
   name: string;
@@ -81,6 +91,8 @@ export type ContactDto = {
   source?: SourceDto;
   /** Prioridad del lead asociado; null si nadie la fijó. */
   priority?: PriorityValue | null;
+  /** Lo que se sabe del lead. `{}` mientras nadie haya calificado. */
+  ficha?: FichaDto;
 };
 
 /* ============================================================

@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
+import { scoped } from "@/lib/db/tenant";
 
 /**
  * Ficha de calificación del lead: lo que el cerebro externo va descubriendo
@@ -72,24 +73,48 @@ export function mergeFicha(prev: Ficha | null | undefined, patch: Ficha): Ficha 
   return out;
 }
 
+/**
+ * Escribe la ficha. Es la ÚNICA puerta: por aquí pasa el cerebro externo
+ * (`PUT /api/bot/ficha`) y también el dueño desde la bandeja, así que los dos
+ * heredan el mismo merge —`null` borra— y las mismas cotas.
+ *
+ * Merge y no reemplazo porque los dos escriben a la vez: el bot va llenando
+ * mientras conversa y el dueño corrige lo que ve. Con reemplazo, el último en
+ * guardar le borraría el trabajo al otro sin que nadie se entere.
+ *
+ * Devuelve `null` si el contacto no existe en esa organización.
+ */
 export async function upsertFicha(input: {
+  organizationId: string;
   contactId: string;
   ficha: FichaInput;
-}): Promise<{ ficha: Ficha }> {
+}): Promise<{ ficha: Ficha } | null> {
   const db = getDb();
   const patch = normalizeFicha(input.ficha);
+
+  // El acotamiento va aquí y no en cada llamador: una ficha es información de
+  // calificación de un cliente ajeno, y confiar en que quien llame se acuerde
+  // de filtrar por organización es exactamente como se filtran los datos entre
+  // inquilinos.
+  const alcance = scoped(
+    schema.contact.organizationId,
+    input.organizationId,
+    eq(schema.contact.id, input.contactId)
+  );
 
   const rows = await db
     .select({ ficha: schema.contact.ficha })
     .from(schema.contact)
-    .where(eq(schema.contact.id, input.contactId))
+    .where(alcance)
     .limit(1);
-  const merged = mergeFicha(rows[0]?.ficha as Ficha | null, patch);
+  if (!rows[0]) return null;
+
+  const merged = mergeFicha(rows[0].ficha as Ficha | null, patch);
 
   await db
     .update(schema.contact)
     .set({ ficha: merged, updatedAt: new Date() })
-    .where(eq(schema.contact.id, input.contactId));
+    .where(alcance);
 
   return { ficha: merged };
 }

@@ -46,8 +46,10 @@ export async function PUT(req: Request) {
   if (!rows[0]) return apiError(404, "not_found", "Conversación no encontrada");
 
   const result = await upsertFicha({
+    organizationId,
     contactId: rows[0].contactId,
     ficha: body.data.ficha,
   });
+  if (!result) return apiError(404, "not_found", "Contacto no encontrado");
   return Response.json(result);
 }
