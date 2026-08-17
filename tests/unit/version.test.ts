@@ -27,6 +27,19 @@ describe("versión de la app", () => {
     expect(config).not.toMatch(/["']\d+\.\d+\.\d+["']/);
   });
 
+  it("la insignia no cablea el nombre del producto", () => {
+    // Esto es white-label: una instancia rebautizada que dice "Vocero" en el
+    // tooltip delata el producto de debajo justo donde el operador la mira
+    // todos los días.
+    const nav = readFileSync(
+      path.join(RAIZ, "src", "components", "app-nav.tsx"),
+      "utf8"
+    );
+    const insignia = nav.slice(nav.indexOf("versionLabel()") - 600);
+    expect(insignia).toContain("branding.name");
+    expect(insignia).not.toMatch(/`Vocero \$\{/);
+  });
+
   it("el Dockerfile acepta el commit sin exigirlo", () => {
     const dockerfile = readFileSync(path.join(RAIZ, "Dockerfile"), "utf8");
     expect(dockerfile).toContain("ARG SOURCE_COMMIT");
@@ -36,6 +49,38 @@ describe("versión de la app", () => {
 });
 
 describe("versionLabel", () => {
+  it("resuelve el commit de la plataforma cuando el build no lo trajo", async () => {
+    // El caso real: Coolify publica `SOURCE_COMMIT` en el contenedor pero no
+    // siempre lo inyecta como build-arg. Sin este respaldo la insignia enseña
+    // solo la versión, que no se mueve entre despliegues del mismo release —
+    // justo la pregunta que venía a contestar.
+    process.env.NEXT_PUBLIC_APP_VERSION = "1.4.2";
+    process.env.NEXT_PUBLIC_BUILD_COMMIT = "";
+    process.env.SOURCE_COMMIT = "abcdef1234567890";
+    const m = await import(`@/lib/version?plat=${Date.now()}`);
+    expect(m.resolveBuildCommit()).toBe("abcdef1");
+    expect(m.versionLabel(m.resolveBuildCommit())).toBe("v1.4.2 · abcdef1");
+  });
+
+  it("el del build MANDA sobre el de la plataforma", async () => {
+    // Si los dos existen, el congelado en la imagen es el que de verdad
+    // corresponde al código que corre.
+    process.env.NEXT_PUBLIC_APP_VERSION = "1.4.2";
+    process.env.NEXT_PUBLIC_BUILD_COMMIT = "1111111aaaa";
+    process.env.SOURCE_COMMIT = "2222222bbbb";
+    const m = await import(`@/lib/version?both=${Date.now()}`);
+    expect(m.resolveBuildCommit()).toBe("1111111");
+  });
+
+  it("sin ninguno de los dos, solo la versión", async () => {
+    process.env.NEXT_PUBLIC_APP_VERSION = "1.4.2";
+    process.env.NEXT_PUBLIC_BUILD_COMMIT = "";
+    delete process.env.SOURCE_COMMIT;
+    const m = await import(`@/lib/version?none=${Date.now()}`);
+    expect(m.resolveBuildCommit()).toBe("");
+    expect(m.versionLabel(m.resolveBuildCommit())).toBe("v1.4.2");
+  });
+
   it("con commit muestra los dos; sin commit, solo la versión", async () => {
     // El módulo lee `process.env` al importarse, así que cada caso necesita su
     // propio import fresco.

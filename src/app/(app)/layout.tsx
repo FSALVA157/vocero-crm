@@ -5,6 +5,7 @@ import { getSessionOrNull } from "@/lib/auth/session";
 import { normalizeThemePreference, THEME_COOKIE } from "@/lib/theme";
 import { getBranding } from "@/server/branding";
 import { AppShell } from "@/components/app-shell";
+import { resolveBuildCommit } from "@/lib/version";
 
 export default async function AppLayout({
   children,
@@ -25,6 +26,8 @@ export default async function AppLayout({
       userName={authSession?.user.name ?? "Usuario"}
       role={session.role}
       theme={theme}
+      // Se resuelve aquí, en el servidor: el cliente no ve `SOURCE_COMMIT`.
+      commit={resolveBuildCommit()}
     >
       {children}
     </AppShell>

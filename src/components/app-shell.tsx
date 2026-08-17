@@ -24,12 +24,15 @@ export function AppShell({
   userName,
   role,
   theme,
+  commit,
   children,
 }: {
   branding: Branding;
   userName: string;
   role: string;
   theme: ThemePreference;
+  /** Commit resuelto en el servidor (build-arg o variable de la plataforma). */
+  commit?: string;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -63,6 +66,7 @@ export function AppShell({
 
       <AppNav
         branding={branding}
+        commit={commit}
         userName={userName}
         role={role}
         theme={theme}

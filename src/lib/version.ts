@@ -24,7 +24,26 @@ export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION ?? "0.0.0";
  */
 export const BUILD_COMMIT = (process.env.NEXT_PUBLIC_BUILD_COMMIT ?? "").slice(0, 7);
 
-/** `v1.1.0 · 8e62d0b`, o solo `v1.1.0` si no hubo commit al construir. */
-export function versionLabel(): string {
-  return BUILD_COMMIT ? `v${APP_VERSION} · ${BUILD_COMMIT}` : `v${APP_VERSION}`;
+/**
+ * Commit resuelto EN EL SERVIDOR.
+ *
+ * Primero el que se congeló al construir; si quien construyó no lo pasó, el que
+ * la plataforma anuncia en tiempo de ejecución. Coolify, por ejemplo, publica
+ * `SOURCE_COMMIT` en el contenedor pero no siempre lo inyecta como build-arg:
+ * sin este respaldo, la insignia enseñaría solo la versión — que no se mueve
+ * entre despliegues del mismo release y por tanto no responde la pregunta.
+ *
+ * Solo tiene sentido llamarla desde el servidor: en el cliente, `process.env`
+ * únicamente lleva las variables `NEXT_PUBLIC_`.
+ */
+export function resolveBuildCommit(): string {
+  return BUILD_COMMIT || (process.env.SOURCE_COMMIT ?? "").slice(0, 7);
+}
+
+/**
+ * `v1.1.0 · 8e62d0b`, o solo `v1.1.0` si no hay commit por ningún lado.
+ * El `commit` se pasa cuando lo resolvió el servidor.
+ */
+export function versionLabel(commit: string = BUILD_COMMIT): string {
+  return commit ? `v${APP_VERSION} · ${commit}` : `v${APP_VERSION}`;
 }
