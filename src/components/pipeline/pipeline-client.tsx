@@ -24,6 +24,7 @@ import { StageManager } from "./stage-manager";
 import { LossReasonDialog } from "./loss-reason-dialog";
 import { AmountDialog } from "./amount-dialog";
 import { PriorityBadge } from "./priority-picker";
+import { LeadDrawer } from "./lead-drawer";
 
 export type BoardLead = {
   id: string;
@@ -51,6 +52,13 @@ export function PipelineClient() {
   } | null>(null);
   /** Tarjeta cuyo monto se está capturando. */
   const [editandoMonto, setEditandoMonto] = useState<BoardLead | null>(null);
+  /**
+   * Trato abierto en el cajón. Se guarda el ID y no el objeto: así el cajón
+   * lee siempre del tablero y refleja al instante lo que se cambie desde
+   * dentro, en vez de enseñar una copia que envejece.
+   */
+  const [abiertoId, setAbiertoId] = useState<string | null>(null);
+  const abierto = leads.find((l) => l.id === abiertoId) ?? null;
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
@@ -146,6 +154,22 @@ export function PipelineClient() {
     await moverLead(leadId, overStage);
   }
 
+  /**
+   * Cambiar de etapa desde el cajón. Entra por la MISMA puerta que el
+   * arrastre: perder un trato exige motivo venga de donde venga, y duplicar
+   * esa regla aquí sería tener dos sitios donde olvidarla.
+   */
+  function moverDesdeCajon(leadId: string, stageId: string) {
+    const lead = leads.find((l) => l.id === leadId);
+    if (!lead || lead.stageId === stageId) return;
+    const destino = stages.find((s) => s.id === stageId);
+    if (destino?.kind === "lost") {
+      setPendingLoss({ leadId, stageId, name: lead.contact.name });
+      return;
+    }
+    void moverLead(leadId, stageId);
+  }
+
   return (
     <div className="flex h-full flex-col">
       <header className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3 sm:px-6 sm:py-4">
@@ -170,6 +194,7 @@ export function PipelineClient() {
                 stage={stage}
                 currency={currency}
                 onEditAmount={setEditandoMonto}
+                onOpen={(l) => setAbiertoId(l.id)}
                 leads={leads
                   .filter((l) => l.stageId === stage.id)
                   .sort((a, b) => a.position - b.position)}
@@ -189,6 +214,20 @@ export function PipelineClient() {
           stages={stages}
           onClose={() => setManaging(false)}
           onChanged={() => void refetch()}
+        />
+      )}
+
+      {/* Va ANTES que los diálogos: con el mismo z-index, el que se pinta
+          después queda encima, y el motivo de pérdida debe tapar al cajón. */}
+      {abierto && (
+        <LeadDrawer
+          lead={abierto}
+          stages={stages}
+          currency={currency}
+          onClose={() => setAbiertoId(null)}
+          onMoveStage={(stageId) => moverDesdeCajon(abierto.id, stageId)}
+          onAmount={(cents) => void guardarMonto(abierto.id, cents)}
+          onPriority={(p) => void guardarPrioridad(abierto.id, p)}
         />
       )}
 
@@ -255,11 +294,13 @@ function StageColumn({
   leads,
   currency,
   onEditAmount,
+  onOpen,
 }: {
   stage: StageDto;
   leads: BoardLead[];
   currency: string;
   onEditAmount: (lead: BoardLead) => void;
+  onOpen: (lead: BoardLead) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
   return (
@@ -289,6 +330,7 @@ function StageColumn({
             lead={lead}
             currency={currency}
             onEditAmount={onEditAmount}
+            onOpen={onOpen}
           />
         ))}
       </div>
@@ -332,10 +374,12 @@ function DraggableLead({
   lead,
   currency,
   onEditAmount,
+  onOpen,
 }: {
   lead: BoardLead;
   currency: string;
   onEditAmount: (lead: BoardLead) => void;
+  onOpen: (lead: BoardLead) => void;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: lead.id,
@@ -345,6 +389,21 @@ function DraggableLead({
       ref={setNodeRef}
       {...listeners}
       {...attributes}
+      // Abrir y arrastrar conviven porque el sensor solo activa el arrastre a
+      // los 6 px de movimiento: un clic quieto nunca llega a ser un arrastre.
+      // Los controles de dentro de la tarjeta cortan la propagación, para que
+      // tocar "+ monto" no abra además el cajón.
+      onClick={() => onOpen(lead)}
+      // dnd-kit ya deja el nodo con `role="button"` y `tabIndex`, pero un div
+      // no dispara `click` con el teclado: sin esto, el cajón sería alcanzable
+      // solo con el ratón.
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onOpen(lead);
+        }
+      }}
+      aria-label={`Abrir el trato de ${lead.contact.name}`}
       className={cn(isDragging && "opacity-40")}
     >
       <LeadCard lead={lead} currency={currency} onEditAmount={onEditAmount} />
@@ -387,6 +446,7 @@ function LeadCard({
           <Link
             href={`/inbox?contact=${lead.contact.id}`}
             onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
             aria-label="Abrir conversación"
             className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
           >
@@ -399,7 +459,12 @@ function LeadCard({
           // `stopPropagation` en pointerdown: sin esto, tocar el monto empieza
           // un arrastre y el diálogo nunca abre.
           onPointerDown={(e) => e.stopPropagation()}
-          onClick={() => onEditAmount(lead)}
+          // También en `click`: sin esto, tocar el monto abriría además el
+          // cajón, porque el evento sigue subiendo hasta la tarjeta.
+          onClick={(e) => {
+            e.stopPropagation();
+            onEditAmount(lead);
+          }}
           className={cn(
             "mt-1.5 w-full rounded px-1 py-0.5 text-right text-xs tabular-nums hover:bg-accent",
             lead.amountCents === null

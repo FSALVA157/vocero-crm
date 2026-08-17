@@ -13,7 +13,7 @@ import { cn, formatPhone } from "@/lib/utils";
 import { ContactAvatar } from "@/components/avatar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { FichaPanel } from "./ficha-panel";
+import { FichaPanel } from "@/components/ficha-panel";
 
 const HANDOFF_LABELS: Record<string, string> = {
   cliente: "El cliente pidió un humano",
