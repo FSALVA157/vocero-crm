@@ -27,6 +27,13 @@ export const PUT = withAuth(async (session, req: Request) => {
   }
   const body = await parseBody(req, putSchema);
   if (!body.ok) return body.response;
-  await saveBranding(session.organizationId, body.data);
+  // El icono se conserva: este formulario es de nombre, color y moneda, y se
+  // sube y se quita por su propia ruta. Sin esto, guardar el nombre borraría
+  // el logo sin que nadie lo pidiera.
+  const actual = await getBranding(session.organizationId);
+  await saveBranding(session.organizationId, {
+    ...body.data,
+    favicon: actual.favicon,
+  });
   return Response.json({ ok: true });
 });
