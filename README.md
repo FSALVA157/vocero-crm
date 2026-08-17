@@ -294,6 +294,24 @@ base64 (44 caracteres): `openssl rand -base64 32`.
 **La app arranca pero /api/health falla** — La base de datos no está lista o
 `DATABASE_URL` apunta mal; revisa los logs (`docker compose logs app`).
 
+**Olvidé mi contraseña y no puedo entrar** — Vocero no manda correos (sería una
+dependencia externa) y el registro público se cierra con la primera
+organización, así que no hay flujo de "olvidé mi contraseña". La salida es
+reescribir el hash en la base:
+
+```bash
+NEW_PASSWORD='tu-contraseña-nueva' node scripts/reset-password.mjs tu@correo.com
+```
+
+El script **no toca la base**: te imprime el `UPDATE` para que lo pegues tú en
+la consola de Postgres. Corre desde tu máquina, con el repo clonado y
+`pnpm install` hecho — la contraseña nueva nunca sale de ahí. Va por variable de
+entorno y no por argumento porque un argumento queda en el historial del shell
+y se ve en `ps`.
+
+Debe responder `UPDATE 1`. Si responde `UPDATE 0`, el correo no coincide;
+míralos con `SELECT email FROM "user";`.
+
 ## Roadmap
 
 - Multimedia completa en la bandeja (hoy: indicador de tipo).
