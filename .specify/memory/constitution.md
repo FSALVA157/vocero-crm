@@ -1,33 +1,51 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Versión: 1.1.0 (plantilla starter) → 1.2.0
+Versión: 1.2.0 → 1.3.0
 
 Cambios:
-  - Título y descripción del producto: Vocero CRM (CRM de WhatsApp con agente de
-    IA, open source MIT, self-hosted, gratuito; una instancia = un negocio).
-  - Principio II "Soberanía / Self-Hosted" → ENDURECIDO: se elimina la excepción
-    de almacenamiento de objetos S3-compatible; lista cerrada de dependencias
-    externas en runtime (WhatsApp Cloud API + proveedor LLM opcional vía
-    adaptador OpenRouter-compatible); prohibición explícita v1 de S3/R2, email,
-    Stripe y Google; requisitos mínimos del instalador fijados.
-  - Principio VIII "Foco Vertical" → definido: CRM de conversaciones y leads de
-    WhatsApp que las agencias despliegan para negocios.
-  - Principios I, III, IV, V, VI, VII y IX: íntegros (sin cambio semántico).
-  - Governance: Ratified / Last Amended = 2026-07-09.
+  - Principio VI "Specs Antes de Código" → EXPANDIDO: se definen tres carriles
+    (ciclo completo / carril ligero / exento) con un criterio objetivo para
+    elegir entre ellos —si toca el modelo de datos o un contrato publicado—, se
+    fija el contenido mínimo del `spec.md` del carril ligero, y se añaden dos
+    reglas: subir de carril al descubrir una migración a mitad de camino, y
+    marcar como tal todo spec escrito a posteriori.
+  - Sección "Flujo de Desarrollo y Puertas de Calidad" → ALINEADA con los carriles:
+    el orden del flujo pasa a depender del carril, y el Constitution Check se
+    declara obligatorio en AMBOS carriles (en el plan si es ciclo completo, en el
+    propio `spec.md` si es carril ligero). Sin esta aclaración el carril ligero
+    habría dejado la puerta constitucional sin sitio donde ocurrir, que sería un
+    debilitamiento —y por tanto un MAJOR—, no una expansión.
+  - Principios I, II, III, IV, V, VII, VIII y IX: íntegros (sin cambio).
+  - Governance: sin cambio.
 
-Bump: MINOR (1.1.0 → 1.2.0) — expansión material del Principio II y definición
-del Principio VIII; sin eliminaciones ni redefiniciones incompatibles.
+Bump: MINOR (1.2.0 → 1.3.0) — expansión material de un principio; no elimina ni
+redefine nada de forma incompatible. Lo que antes cumplía el ciclo completo lo
+sigue cumpliendo.
+
+Motivación:
+  El carril ligero NO es una práctica nueva: es la que el repositorio ya usa.
+  `001-vocero-core` llevó el ciclo completo (12 archivos, ~14.600 palabras)
+  porque era el producto entero; `002-diseno-atlas` se quedó en spec + plan
+  (~1.290 palabras) y `003-paridad-inbox`, en un solo `spec.md` (565 palabras).
+  Esa gradación funcionó, pero nunca se escribió — y sin el escalón intermedio
+  documentado, el siguiente paso hacia abajo acabó siendo ninguno: las features
+  entregadas entre la 003 y la versión 1.2.0 de la app se implementaron sin spec.
+  Esta enmienda ratifica la práctica existente y le pone criterio.
 
 Plantillas dependientes:
-  - .specify/templates/plan-template.md — ✅ compatible (Constitution Check
-    genérico; los gates se evalúan contra esta versión).
-  - .specify/templates/spec-template.md — ✅ compatible (sin secciones nuevas).
-  - .specify/templates/tasks-template.md — ✅ compatible.
-  - CLAUDE.md — ⚠ se personaliza para el usuario final del repo en la fase de
-    implementación (tarea planificada de la feature 001).
+  - .specify/templates/spec-template.md — ✅ compatible. Sus secciones
+    obligatorias (User Scenarios & Testing, Requirements, Success Criteria)
+    cubren de sobra el mínimo del carril ligero; en ese carril se rellenan solo
+    ellas y se omiten las opcionales.
+  - .specify/templates/plan-template.md — ✅ compatible (solo aplica al ciclo
+    completo; su Constitution Check se evalúa contra esta versión).
+  - .specify/templates/tasks-template.md — ✅ compatible (ídem).
+  - CLAUDE.md — ⚠ conviene reflejar los tres carriles cuando se actualice.
 
-TODOs diferidos: ninguno.
+TODOs diferidos:
+  - Deuda documental: las features entregadas entre `003` y la app 1.2.0 siguen
+    sin spec. Se pagan a posteriori y marcadas como tales (ver Principio VI).
 -->
 
 # Vocero CRM Constitution
@@ -126,17 +144,44 @@ depende de optimismo.
 
 ### VI. Specs Antes de Código
 
-Ninguna feature se implementa sin una especificación previa.
+Ninguna feature se implementa sin una especificación previa. La especificación
+describe el comportamiento observable por el usuario, no la implementación.
 
-- La especificación describe el comportamiento observable por el usuario, no la
-  implementación.
-- El orden del flujo es specify → plan → tasks → implement; el código de una feature
-  no comienza antes de existir su spec.
-- Correcciones triviales y cambios sin comportamiento observable nuevo (typos,
-  formato, refactors internos sin cambio de contrato) están exentos.
+El **carril** se elige y se declara ANTES de escribir código, y en los tres casos
+la decisión queda por escrito:
+
+- **Ciclo completo** (`specify → plan → tasks → implement`) — obligatorio cuando la
+  feature toca el **modelo de datos** (cualquier migración) o un **contrato
+  publicado** (`/api/bot/*`, el webhook, SSE, o un DTO que consuma algo fuera de
+  este repo). Ahí el coste de equivocarse no lo paga quien programa: lo paga quien
+  ya tiene datos guardados o un cliente conectado.
+
+- **Carril ligero** (`spec.md` únicamente) — para features con comportamiento
+  observable nuevo que NO tocan el modelo de datos ni un contrato. El `spec.md`
+  MUST contener, y le basta con: qué problema resuelve, el comportamiento
+  observable con criterios de aceptación verificables, y qué se decidió NO hacer y
+  por qué.
+
+- **Exento** — correcciones triviales y cambios sin comportamiento observable nuevo
+  (typos, formato, refactors internos sin cambio de contrato, dependencias,
+  herramientas de desarrollo).
+
+Reglas que sostienen lo anterior:
+
+- Si una feature del carril ligero descubre a mitad de camino que necesita una
+  migración o cambiar un contrato, **sube de carril**: se escribe el plan antes de
+  continuar, no después de terminar.
+- Un spec escrito DESPUÉS de la implementación se marca visiblemente como tal en su
+  encabezado. Es documentación, no diseño, y confundirlos hace creer a quien lo lea
+  dentro de un año que esas decisiones se tomaron antes de programar.
 
 **Rationale**: Especificar el comportamiento observable antes de codificar previene
-retrabajo y mantiene alineadas todas las fases del flujo.
+retrabajo y mantiene alineadas todas las fases del flujo. Los tres carriles existen
+porque un único ciclo, calibrado para una feature que define el producto entero, es
+más ceremonia que trabajo en un cambio de doscientas líneas — y una regla que cuesta
+más de lo que rinde no se discute: se erosiona en silencio, hasta que "specs antes de
+código" significa "sin specs". Nombrar el escalón intermedio es lo que evita que el
+siguiente paso hacia abajo sea ninguno.
 
 ### VII. Trazabilidad de Decisiones
 
@@ -227,12 +272,20 @@ Estas restricciones derivan de los Principios I y II y son verificables en revis
 
 ## Flujo de Desarrollo y Puertas de Calidad
 
-- **Orden del flujo**: specify → plan → tasks → implement. Cada fase consume el
-  artefacto de la anterior.
-- **Puerta constitucional (Constitution Check)**: el plan de cada feature evalúa el
-  cumplimiento de estos principios antes de la Fase 0 y se re-evalúa tras el diseño de
-  la Fase 1. Las violaciones se registran y justifican en Complexity Tracking o se
-  eliminan.
+- **Orden del flujo**: depende del carril declarado (Principio VI). En el ciclo
+  completo, `specify → plan → tasks → implement`, y cada fase consume el artefacto
+  de la anterior. En el carril ligero, `specify → implement`.
+- **Puerta constitucional (Constitution Check)**: se evalúa SIEMPRE, en los dos
+  carriles — cambia dónde vive, no si ocurre. En el ciclo completo, en el plan:
+  antes de la Fase 0 y de nuevo tras el diseño de la Fase 1. En el carril ligero,
+  en el propio `spec.md`, antes de escribir código. Las violaciones se registran y
+  justifican (Complexity Tracking en el ciclo completo, o una nota explícita en el
+  spec) o se eliminan.
+
+  El carril ligero ahorra ceremonia de planificación, NUNCA la revisión
+  constitucional: los principios que más caro cuesta romper —aislamiento entre
+  inquilinos, soberanía, idempotencia— se violan igual de fácil en doscientas
+  líneas que en dos mil.
 - **Puerta de calidad (Definición de "Hecho")**: tipos + lint + build en verde, y
   tests donde apliquen; lo no verificable automáticamente se marca como pendiente de
   verificación humana (Principio V). Para features con comportamiento observable de cara
@@ -260,4 +313,4 @@ práctica, convención o preferencia; ante un conflicto, gana la constitución.
 - **Propagación**: al enmendar la constitución se revisan y, si procede, se actualizan
   las plantillas dependientes (plan, spec, tasks).
 
-**Version**: 1.2.0 | **Ratified**: 2026-07-09 | **Last Amended**: 2026-07-09
+**Version**: 1.3.0 | **Ratified**: 2026-07-09 | **Last Amended**: 2026-08-17
