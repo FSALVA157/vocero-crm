@@ -360,6 +360,163 @@ implementes donde te convenga.
 Si viste algún video donde digo que Vocero trae el motor de agendamiento: me
 adelanté, y esta es la aclaración.
 
+## Desarrollo local
+
+Para **modificar** Vocero (una agencia adaptándolo a un cliente, o contribuir
+al repo). No necesitas VPS, ni dominio, ni número de WhatsApp: el entorno trae
+mocks de la Cloud API y del proveedor LLM.
+
+Requisitos: Node 20+, pnpm y Docker.
+
+### 1. Base de datos
+
+```bash
+docker compose -f docker-compose.dev.yml up -d
+```
+
+Levanta un Postgres 16 en el puerto **5432** del host. Si ya lo tienes ocupado
+por otro Postgres, elige otro con `POSTGRES_PORT` en el `.env` (p. ej. `5435`)
+y usa ese mismo puerto en `DATABASE_URL`.
+
+### 2. Variables de entorno
+
+```bash
+cp .env.example .env
+```
+
+Las cinco obligatorias, con valores de desarrollo:
+
+```bash
+APP_BASE_URL=http://localhost:3000
+POSTGRES_PASSWORD=<openssl rand -hex 24>
+DATABASE_URL=postgresql://postgres:<esa misma contraseña>@localhost:5432/vocero
+BETTER_AUTH_SECRET=<openssl rand -base64 32>
+ENCRYPTION_KEY=<openssl rand -base64 32>        # exactamente 32 bytes en base64
+META_WEBHOOK_VERIFY_TOKEN=<openssl rand -hex 32>
+```
+
+Y el **modo de pruebas interno**, que sustituye WhatsApp y el LLM por mocks:
+
+```bash
+WA_MOCK_ENABLED=true
+META_GRAPH_BASE_URL=http://localhost:3000/api/dev/wa-mock/graph
+OPENROUTER_BASE_URL=http://localhost:3000/api/dev/ai-mock
+OPENROUTER_API_TOKEN=mock-token
+OPENROUTER_MODEL=mock/model
+BOT_API_KEY=<cualquier cadena de 16+ caracteres>   # lo exigen los guiones E2E
+```
+
+> **Nunca actives los mocks en producción.** Secretos locales propios: no
+> reutilices los de tu instancia desplegada.
+
+### 3. Dependencias, migraciones y arranque
+
+```bash
+pnpm install
+MIGRATIONS_DIR=./drizzle node --env-file=.env scripts/migrate.mjs
+pnpm dev
+```
+
+**`MIGRATIONS_DIR` no es opcional en local.** Por defecto el script busca las
+migraciones junto a sí mismo (`scripts/drizzle`), ruta que solo existe dentro
+de la imagen Docker, donde `migrate.mjs` vive al lado de `drizzle/`. Sin la
+variable verás 15 reintentos de `[migrate] BD no lista` y al final el error
+real, `Can't find meta/_journal.json` — la base estaba perfecta.
+
+### 4. Primer usuario y datos de demo
+
+Entra a `http://localhost:3000/register` y regístrate: el primer registro crea
+la organización y **cierra el registro público** (para reabrirlo:
+`ALLOW_SIGNUP=true`). Con la organización ya creada:
+
+```bash
+pnpm seed:demo
+```
+
+Carga la **Ferretería El Martillo** (8 contactos con conversaciones, pipeline,
+knowledge base y una corrida de Laboratorio). Dos guardas: si lo corres antes
+de registrarte avisa y no hace nada, y si la organización ya tiene datos se
+niega a pisarlos. Para recargar la demo desde cero:
+
+```bash
+pnpm seed:demo --force
+```
+
+### 5. Simular WhatsApp sin WhatsApp
+
+Con los mocks encendidos, `src/app/api/dev/` expone el canal falso:
+
+| Endpoint | Para qué |
+|---|---|
+| `POST /api/dev/wa-mock/inbound` | Inyectar un mensaje entrante |
+| `GET /api/dev/wa-mock/outbox` | Ver lo que la app "envió" |
+| `POST /api/dev/wa-mock/status` | Simular entregado / leído / fallido |
+| `/api/dev/ai-mock` | Respuestas del LLM sin gastar tokens |
+
+```bash
+curl -X POST localhost:3000/api/dev/wa-mock/inbound \
+  -H 'content-type: application/json' \
+  -d '{"phoneNumberId":"<el de Configuración → WhatsApp>","from":"5215612340001","text":"hola"}'
+```
+
+El webhook enruta por `phone_number_id`, así que primero hay que conectar un
+número en **Configuración → WhatsApp** (con los mocks activos las llamadas a
+Graph van al wa-mock, no a Meta). Sin eso el mensaje se descarta con
+`phone_number_id desconocido`.
+
+Los mocks están tras un gate único (`src/lib/dev-guard.ts`): exigen
+`WA_MOCK_ENABLED=true` **y** estar fuera de producción. En una imagen Docker
+(`NODE_ENV=production`) responden 404 aunque pongas la variable.
+
+### 6. Pruebas
+
+```bash
+pnpm test                                  # unit (Vitest)
+pnpm vitest run tests/unit/tenant.test.ts  # un archivo
+pnpm vitest run -t "nombre del caso"       # un caso
+pnpm test:e2e                              # arnés E2E contra la app viva
+```
+
+`pnpm test:e2e` requiere la app corriendo, la BD migrada, los mocks encendidos
+y `BOT_API_KEY` en el `.env`. Los guiones por historia están en
+[`tests/e2e/`](tests/e2e/); parte ya automatizados en `scripts/e2e-*.mjs`.
+
+Antes de abrir un PR:
+
+```bash
+pnpm typecheck && pnpm lint && pnpm build && pnpm test
+```
+
+### 7. Cambios en el esquema
+
+```bash
+# 1. edita src/lib/db/schema.ts
+pnpm db:generate                                            # genera drizzle/NNNN_*.sql
+MIGRATIONS_DIR=./drizzle node --env-file=.env scripts/migrate.mjs
+```
+
+Drizzle **no genera `down`**: las migraciones son de una sola dirección y en
+producción corren al **arrancar el contenedor**, antes que el server. Volver
+el código atrás no deshace el esquema. Por eso:
+
+- Columnas nuevas **nullable** o con `DEFAULT` — nunca `NOT NULL` sin default
+  sobre una tabla con datos.
+- Nada de `RENAME` ni `DROP COLUMN` en la misma migración que introduce el
+  reemplazo: añadir → backfill → borrar en una versión posterior.
+- `IF EXISTS` / `IF NOT EXISTS` para que sean re-ejecutables (Constitución IV).
+
+Así un rollback de solo código sigue funcionando contra la base ya migrada.
+
+### Utilidades
+
+```bash
+# Empezar de cero (BORRA todos los datos locales)
+docker compose -f docker-compose.dev.yml down -v
+
+# Contraseña perdida: imprime un UPDATE para pegar a mano, no toca la BD
+node scripts/reset-password.mjs
+```
+
 ## Stack
 
 Next.js 15 (App Router) + React 19 · TypeScript estricto · PostgreSQL +
