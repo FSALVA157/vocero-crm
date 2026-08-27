@@ -84,6 +84,7 @@ No corre E2E: eso es tuyo antes de declarar "Hecho".
 | La ingesta/envío de mensajes | `src/server/inbox/` (ingest idempotente, send con guard de sandbox, ventana 24h) |
 | Cómo se identifica a un contacto | `src/server/inbox/identity.ts` (teléfono normalizado o `bsuid:<id>`) |
 | Conectar TU propio bot en vez del agente | `src/app/api/bot/*` + `src/server/bot/auth.ts` (X-API-Key) |
+| Quién puede hacer qué (roles) | `src/lib/auth/permissions.ts` (matriz) → cada ruta la declara con `withAuth(h, { permission })` |
 | UI | `src/components/` + `src/app/(app)/` |
 
 Los mocks del entorno de pruebas viven en `src/app/api/dev/` (wa-mock +
@@ -113,7 +114,9 @@ Ver [.specify/memory/constitution.md](.specify/memory/constitution.md).
 - **Seguridad (I)**: secretos cifrados en reposo (AES-256-GCM, `lib/crypto`);
   jamás al cliente ni a logs. El token de WhatsApp solo muestra sus últimos 4.
 - **Multi-tenancy (III)**: `organization_id` NOT NULL en toda tabla de dominio;
-  toda query pasa por `scoped()` de `src/lib/db/tenant.ts`.
+  toda query pasa por `scoped()` de `src/lib/db/tenant.ts`. El permiso de rol
+  NO lo sustituye: dice qué puede hacer alguien, no sobre qué filas. Una ruta
+  nueva necesita los dos.
 - **Idempotencia (IV)**: webhooks dedup por `wa_message_id` UNIQUE; estados
   monotónicos; seeds y migraciones re-ejecutables.
 - **Sandbox del Laboratorio**: las conversaciones `is_test` JAMÁS tocan la API

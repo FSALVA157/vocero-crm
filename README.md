@@ -102,11 +102,23 @@ Agente de referencia: [nea-agent](https://github.com/kevinrivm/nea-agent), MIT.
 ### 📄 Plantillas · 👥 Multi-usuario · 🔐 Self-hosted
 
 Plantillas con varias variables `{{1}}…{{n}}` y aprobación de Meta
-sincronizada; cuentas de equipo creadas por el propietario (el registro público
-se cierra tras la primera organización); token de WhatsApp cifrado en reposo
-(AES-256-GCM),
-webhook autenticado en dos capas y cero dependencias de runtime más allá de
-Meta y tu proveedor LLM opcional.
+sincronizada; token de WhatsApp cifrado en reposo (AES-256-GCM), webhook
+autenticado en dos capas y cero dependencias de runtime más allá de Meta y tu
+proveedor LLM opcional.
+
+**Tres roles** para que dar acceso a la bandeja no signifique entregar las
+llaves del negocio:
+
+| Rol | Puede |
+|---|---|
+| **Propietario** | Todo. Único que conecta WhatsApp y administra el equipo. |
+| **Administrador** | Configura el negocio: agente, conocimiento, Laboratorio, etapas, plantillas y marca. No toca WhatsApp ni las cuentas. |
+| **Operador** | Atiende: bandeja, contactos y pipeline. No entra a la configuración. |
+
+Las cuentas las crea el propietario desde Configuración → Equipo eligiendo el
+rol (el registro público se cierra tras la primera organización). Sin correos
+ni invitaciones: comparte tú la contraseña temporal. Cambiar el rol de alguien
+surte efecto en su siguiente clic, y quitarlo lo desconecta al instante.
 
 ## Requisitos
 

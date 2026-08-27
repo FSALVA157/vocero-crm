@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export default async function BrandingSettingsPage() {
   if (!(await hasPermission("settings.branding.write"))) {
-    return <Forbidden seccion="la marca" />;
+    return <Forbidden destino="a la marca" />;
   }
   // La marca se lee en el servidor para que la tarjeta del icono ya pinte la
   // vista previa correcta en el primer render, sin un parpadeo del generado al

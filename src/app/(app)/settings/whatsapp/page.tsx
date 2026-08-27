@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 export default async function WhatsappSettingsPage() {
   if (!(await hasPermission("settings.read"))) {
-    return <Forbidden seccion="la conexión de WhatsApp" />;
+    return <Forbidden destino="a la conexión de WhatsApp" />;
   }
   return <WhatsappWizard />;
 }

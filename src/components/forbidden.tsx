@@ -8,10 +8,15 @@ import { ShieldOff } from "lucide-react";
  * pedírselo, en vez de rebotar a la bandeja sin explicación.
  */
 export function Forbidden({
-  seccion,
+  destino,
   detalle,
 }: {
-  seccion: string;
+  /**
+   * Incluye la preposición ya contraída ("al Agente", "a la marca"): en
+   * castellano "a el" no existe, y componerlo aquí obligaría a adivinar el
+   * género de cada sección.
+   */
+  destino: string;
   detalle?: string;
 }) {
   return (
@@ -20,7 +25,7 @@ export function Forbidden({
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-muted">
           <ShieldOff className="h-6 w-6 text-muted-foreground" />
         </div>
-        <h2 className="mt-4 text-base font-semibold">No tienes acceso a {seccion}</h2>
+        <h2 className="mt-4 text-base font-semibold">No tienes acceso {destino}</h2>
         <p className="mt-2 text-sm text-muted-foreground">
           {detalle ?? "Tu rol no incluye esta sección."} Pídele al propietario
           de la instancia que cambie tu rol en Configuración → Equipo.

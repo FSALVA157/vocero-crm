@@ -8,7 +8,7 @@ export default async function TemplatesSettingsPage() {
   // Esta pantalla crea y sincroniza: leer plantillas para enviarlas desde el
   // compositor no requiere pasar por aquí.
   if (!(await hasPermission("templates.write"))) {
-    return <Forbidden seccion="las plantillas" />;
+    return <Forbidden destino="a las plantillas" />;
   }
   return <TemplatesClient />;
 }

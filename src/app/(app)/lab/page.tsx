@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 export default async function LabPage() {
   if (!(await hasPermission("agent.write"))) {
-    return <Forbidden seccion="el Laboratorio" />;
+    return <Forbidden destino="al Laboratorio" />;
   }
   return <LabClient />;
 }
