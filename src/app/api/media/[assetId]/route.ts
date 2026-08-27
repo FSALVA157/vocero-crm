@@ -73,4 +73,4 @@ export const GET = withAuth(async (session, _req: Request, ctx: Params) => {
   } catch {
     return apiError(410, "gone", "El archivo del adjunto no está en el volumen");
   }
-});
+}, { permission: "inbox.read" });

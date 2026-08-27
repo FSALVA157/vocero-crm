@@ -24,7 +24,7 @@ export const GET = withAuth(async (session, req: Request, ctx: Params) => {
   return Response.json({
     messages: messages.map((r) => serializeMessage(r.message, r.media)),
   });
-});
+}, { permission: "inbox.read" });
 
 // 008: además de texto, el body acepta ubicación y contactos (discriminado
 // por `type`; sin `type` sigue siendo texto — compat con clientes previos).
@@ -100,4 +100,4 @@ export const POST = withAuth(async (session, req: Request, ctx: Params) => {
     }
     throw err;
   }
-});
+}, { permission: "inbox.write" });

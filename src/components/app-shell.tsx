@@ -6,6 +6,7 @@ import { Menu } from "lucide-react";
 import type { Branding } from "@/lib/branding";
 import type { ThemePreference } from "@/lib/theme";
 import { AppNav } from "@/components/app-nav";
+import { RoleProvider } from "@/components/role-context";
 
 /**
  * Cascarón de la app en dos modos:
@@ -95,7 +96,9 @@ export function AppShell({
           </span>
         </header>
 
-        <main className="min-h-0 min-w-0 flex-1 overflow-hidden">{children}</main>
+        <main className="min-h-0 min-w-0 flex-1 overflow-hidden">
+          <RoleProvider role={role}>{children}</RoleProvider>
+        </main>
       </div>
     </div>
   );

@@ -15,7 +15,7 @@ export const GET = withAuth(async (session) => {
     .where(scoped(schema.pipelineStage.organizationId, session.organizationId))
     .orderBy(asc(schema.pipelineStage.position));
   return Response.json({ stages });
-});
+}, { permission: "pipeline.read" });
 
 const createSchema = z.object({
   name: z.string().trim().min(1).max(60),
@@ -44,4 +44,4 @@ export const POST = withAuth(async (session, req: Request) => {
     })
     .returning();
   return Response.json({ stage: inserted[0] }, { status: 201 });
-});
+}, { permission: "pipeline.stages.write" });

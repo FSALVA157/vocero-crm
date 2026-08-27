@@ -146,4 +146,4 @@ export const PATCH = withAuth(async (session, req: Request, ctx: Params) => {
   }
 
   return Response.json({ lead: res.lead });
-});
+}, { permission: "pipeline.leads.write" });

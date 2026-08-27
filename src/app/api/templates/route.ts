@@ -20,7 +20,7 @@ export const GET = withAuth(async (session) => {
     .where(scoped(schema.template.organizationId, session.organizationId))
     .orderBy(desc(schema.template.createdAt));
   return Response.json({ templates: templates.map(serializeTemplate) });
-});
+}, { permission: "templates.read" });
 
 const createSchema = z.object({
   name: z.string().trim().min(1).max(60),
@@ -45,4 +45,4 @@ export const POST = withAuth(async (session, req: Request) => {
     }
     throw err;
   }
-});
+}, { permission: "templates.write" });

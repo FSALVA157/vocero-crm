@@ -62,4 +62,4 @@ export const GET = withAuth(async (session) => {
       conversationId: r.conversationId,
     })),
   });
-});
+}, { permission: "pipeline.read" });

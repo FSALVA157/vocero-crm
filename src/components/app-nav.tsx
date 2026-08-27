@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import type { Branding } from "@/lib/branding";
+import { can, normalizeRole, ROLE_LABEL } from "@/lib/auth/permissions";
 import type { ThemePreference } from "@/lib/theme";
 import { cn, initials } from "@/lib/utils";
 import { signOut } from "@/lib/auth/client";
@@ -22,11 +23,11 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { APP_VERSION, BUILD_COMMIT, versionLabel } from "@/lib/version";
 
 const NAV = [
-  { href: "/inbox", label: "Bandeja", icon: Inbox, badge: true },
-  { href: "/pipeline", label: "Pipeline", icon: Kanban },
-  { href: "/contacts", label: "Contactos", icon: Users },
-  { href: "/agent", label: "Agente", icon: Sparkles },
-  { href: "/lab", label: "Laboratorio", icon: FlaskConical },
+  { href: "/inbox", label: "Bandeja", icon: Inbox, badge: true, permission: "inbox.read" },
+  { href: "/pipeline", label: "Pipeline", icon: Kanban, permission: "pipeline.read" },
+  { href: "/contacts", label: "Contactos", icon: Users, permission: "contacts.read" },
+  { href: "/agent", label: "Agente", icon: Sparkles, permission: "agent.write" },
+  { href: "/lab", label: "Laboratorio", icon: FlaskConical, permission: "agent.write" },
 ] as const;
 
 export function AppNav({
@@ -52,6 +53,11 @@ export function AppNav({
   onClose?: () => void;
 }) {
   const pathname = usePathname();
+  const rol = normalizeRole(role);
+  // "Ajustes" solo si el rol abre alguna pestaña de Configuración; si no, el
+  // enlace llevaría a un 403 (spec 004).
+  const verAjustes =
+    can(rol, "settings.read") || can(rol, "templates.write");
   const router = useRouter();
   const [unread, setUnread] = useState(0);
 
@@ -114,7 +120,7 @@ export function AppNav({
       </div>
 
       <nav className="flex flex-col gap-0.5">
-        {NAV.map((item) => {
+        {NAV.filter((item) => can(rol, item.permission)).map((item) => {
           const active =
             pathname === item.href || pathname.startsWith(`${item.href}/`);
           return (
@@ -150,6 +156,7 @@ export function AppNav({
 
       <div className="flex-1" />
 
+      {verAjustes && (
       <Link
         href="/settings"
         className={cn(
@@ -168,6 +175,7 @@ export function AppNav({
         />
         Ajustes
       </Link>
+      )}
 
       <div className="mt-1 flex items-center gap-2.5 rounded-sm px-2.5 py-2 hover:bg-accent">
         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-soft text-xs font-semibold text-brand-text">
@@ -176,7 +184,7 @@ export function AppNav({
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[13px] font-semibold">{userName}</span>
           <span className="block text-[11px] text-text-3">
-            {role === "owner" ? "Propietario" : "Equipo"} · En línea
+            {ROLE_LABEL[rol]} · En línea
           </span>
         </span>
         <ThemeToggle initial={theme} />

@@ -31,7 +31,7 @@ export const GET = withAuth(async (session, _req: Request, ctx: Params) => {
       : null,
     lead: stageRow ? { id: stageRow.lead.id } : null,
   });
-});
+}, { permission: "contacts.read" });
 
 const patchSchema = z.object({
   name: z.string().trim().min(1).max(120).optional(),
@@ -84,4 +84,4 @@ export const PATCH = withAuth(async (session, req: Request, ctx: Params) => {
     .returning();
   if (!updated[0]) return apiError(404, "not_found", "Contacto no encontrado");
   return Response.json({ contact: serializeContact(updated[0]) });
-});
+}, { permission: "contacts.write" });
