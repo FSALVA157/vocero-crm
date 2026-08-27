@@ -42,4 +42,4 @@ export const POST = withAuth(async (session, req: Request, ctx: Params) => {
     }
     throw err;
   }
-});
+}, { permission: "inbox.write" });

@@ -31,4 +31,4 @@ export const PATCH = withAuth(async (session, req: Request, ctx: Params) => {
     return Response.json({ conversation: dto });
   }
   return Response.json({ conversation: null });
-});
+}, { permission: "inbox.write" });

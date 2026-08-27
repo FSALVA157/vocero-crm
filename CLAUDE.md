@@ -20,6 +20,57 @@ Tiempo real por **SSE** (`/api/events`): heartbeat `: ping` ~25s, headers
 anti-buffering, catch-up por refetch con `since=`. Sin WebSockets, sin colas
 externas: el trabajo en segundo plano (agente, Laboratorio) es in-process.
 
+## Levantar el entorno de desarrollo
+
+```bash
+docker compose -f docker-compose.dev.yml up -d   # Postgres local (POSTGRES_PORT o 5432)
+cp .env.example .env                             # y completar los secretos
+pnpm install
+MIGRATIONS_DIR=./drizzle node --env-file=.env scripts/migrate.mjs
+pnpm dev                                         # regístrate: el 1er registro crea la org
+pnpm seed:demo                                   # datos de demo (exige org; recarga con --force)
+```
+
+`MIGRATIONS_DIR` no es opcional en local: por defecto el script busca
+`scripts/drizzle`, ruta que solo existe dentro de la imagen Docker. Sin ella
+verás 15 reintentos de `[migrate] BD no lista` y al final el error real,
+`Can't find meta/_journal.json`. Guía completa en el README (Desarrollo local).
+
+Con mocks (modo de pruebas interno, nunca en producción) agrega al `.env`:
+
+```bash
+WA_MOCK_ENABLED=true
+META_GRAPH_BASE_URL=http://localhost:3000/api/dev/wa-mock/graph
+OPENROUTER_BASE_URL=http://localhost:3000/api/dev/ai-mock
+```
+
+Un mensaje entrante simulado:
+`curl -X POST localhost:3000/api/dev/wa-mock/inbound -H 'content-type: application/json' -d '{...}'`
+(ver `specs/001-vocero-core/quickstart.md`).
+
+Contraseña perdida: `node scripts/reset-password.mjs` imprime un `UPDATE` para
+pegar a mano — no toca la BD.
+
+## Comandos de prueba
+
+```bash
+pnpm test                                  # todo el unit suite (Vitest)
+pnpm vitest run tests/unit/tenant.test.ts  # un solo archivo
+pnpm vitest run -t "nombre del caso"       # un solo caso por nombre
+pnpm test:watch                            # watch
+
+pnpm test:e2e                              # arnés completo (app viva + mocks)
+node --env-file=.env scripts/e2e-prioridad.mjs   # un solo guion E2E
+```
+
+Los `scripts/e2e-*.mjs` conducen la app REAL en `APP_BASE_URL`
+(default `http://localhost:3000`) y salen != 0 al fallar; requieren la app
+corriendo, la BD migrada, mocks encendidos y `BOT_API_KEY` en el `.env`.
+
+CI (`.github/workflows/ci.yml`) corre typecheck · lint · test · build en cada
+PR, los cuatro aunque uno falle (una corrida = la lista completa de errores).
+No corre E2E: eso es tuyo antes de declarar "Hecho".
+
 ## Mapa del código (fronteras de modificación)
 
 | Quieres cambiar… | Toca… |
@@ -33,6 +84,7 @@ externas: el trabajo en segundo plano (agente, Laboratorio) es in-process.
 | La ingesta/envío de mensajes | `src/server/inbox/` (ingest idempotente, send con guard de sandbox, ventana 24h) |
 | Cómo se identifica a un contacto | `src/server/inbox/identity.ts` (teléfono normalizado o `bsuid:<id>`) |
 | Conectar TU propio bot en vez del agente | `src/app/api/bot/*` + `src/server/bot/auth.ts` (X-API-Key) |
+| Quién puede hacer qué (roles) | `src/lib/auth/permissions.ts` (matriz) → cada ruta la declara con `withAuth(h, { permission })` |
 | UI | `src/components/` + `src/app/(app)/` |
 
 Los mocks del entorno de pruebas viven en `src/app/api/dev/` (wa-mock +
@@ -62,7 +114,9 @@ Ver [.specify/memory/constitution.md](.specify/memory/constitution.md).
 - **Seguridad (I)**: secretos cifrados en reposo (AES-256-GCM, `lib/crypto`);
   jamás al cliente ni a logs. El token de WhatsApp solo muestra sus últimos 4.
 - **Multi-tenancy (III)**: `organization_id` NOT NULL en toda tabla de dominio;
-  toda query pasa por `scoped()` de `src/lib/db/tenant.ts`.
+  toda query pasa por `scoped()` de `src/lib/db/tenant.ts`. El permiso de rol
+  NO lo sustituye: dice qué puede hacer alguien, no sobre qué filas. Una ruta
+  nueva necesita los dos.
 - **Idempotencia (IV)**: webhooks dedup por `wa_message_id` UNIQUE; estados
   monotónicos; seeds y migraciones re-ejecutables.
 - **Sandbox del Laboratorio**: las conversaciones `is_test` JAMÁS tocan la API
@@ -126,8 +180,9 @@ manténlos al día. Invocable como `/loop-sdd <objetivo>`.
 
 ## Memoria persistente
 
-Memoria de archivos en `memory/` (índice `memory/MEMORY.md`, cargado por
-sesión). Persiste decisiones, gotchas y correcciones; no dupliques lo que el
+Memoria de archivos fuera del repo, en el directorio de memoria de la sesión
+de Claude Code (índice `MEMORY.md`, cargado por sesión); no hay carpeta
+`memory/` versionada. Persiste decisiones, gotchas y correcciones; no dupliques lo que el
 repo ya registra. Los subagentes con `memory: project` usan
 `.claude/agent-memory/`.
 

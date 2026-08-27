@@ -16,9 +16,6 @@ export const dynamic = "force-dynamic";
  * es trabajo que no compra nada.
  */
 export const PUT = withAuth(async (session, req: Request) => {
-  if (session.role !== "owner") {
-    return apiError(403, "forbidden", "Solo el propietario puede cambiar la marca");
-  }
 
   const buf = new Uint8Array(await req.arrayBuffer());
   if (buf.byteLength === 0) {
@@ -58,13 +55,10 @@ export const PUT = withAuth(async (session, req: Request) => {
   });
 
   return Response.json({ favicon: { mime, version } });
-});
+}, { permission: "settings.branding.write" });
 
 /** Quitar el subido y volver al generado de la marca. */
 export const DELETE = withAuth(async (session) => {
-  if (session.role !== "owner") {
-    return apiError(403, "forbidden", "Solo el propietario puede cambiar la marca");
-  }
 
   const branding = await getBranding(session.organizationId);
   await saveBranding(session.organizationId, { ...branding, favicon: null });
@@ -76,4 +70,4 @@ export const DELETE = withAuth(async (session) => {
   }).catch(() => null);
 
   return Response.json({ favicon: null });
-});
+}, { permission: "settings.branding.write" });

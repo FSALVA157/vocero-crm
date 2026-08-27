@@ -5,6 +5,7 @@ import { getAuth, runInternalSignup } from "@/lib/auth";
 import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
 import { scoped } from "@/lib/db/tenant";
+import { ASSIGNABLE_ROLES } from "@/lib/auth/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,7 @@ export const GET = withAuth(async (session) => {
   const members = await db
     .select({
       id: schema.member.id,
+      userId: schema.member.userId,
       role: schema.member.role,
       createdAt: schema.member.createdAt,
       name: schema.user.name,
@@ -24,25 +26,25 @@ export const GET = withAuth(async (session) => {
   return Response.json({
     members: members.map((m) => ({
       id: m.id,
+      userId: m.userId,
       role: m.role,
       name: m.name,
       email: m.email,
       createdAt: m.createdAt.toISOString(),
     })),
   });
-});
+}, { permission: "team.read" });
 
 const createSchema = z.object({
   name: z.string().trim().min(1).max(120),
   email: z.string().trim().email(),
   password: z.string().min(8).max(128),
+  /** Nunca "owner": el propietario es único (spec 004). */
+  role: z.enum(ASSIGNABLE_ROLES).default("member"),
 });
 
 /** Alta de cuenta de equipo (owner only): email + contraseña temporal (FR-061). */
 export const POST = withAuth(async (session, req: Request) => {
-  if (session.role !== "owner") {
-    return apiError(403, "forbidden", "Solo el propietario puede crear cuentas");
-  }
   const body = await parseBody(req, createSchema);
   if (!body.ok) return body.response;
 
@@ -75,9 +77,9 @@ export const POST = withAuth(async (session, req: Request) => {
       id: newId("member"),
       organizationId: session.organizationId,
       userId: newUserId,
-      role: "member",
+      role: body.data.role,
     })
     .onConflictDoNothing();
 
   return Response.json({ ok: true }, { status: 201 });
-});
+}, { permission: "team.write" });

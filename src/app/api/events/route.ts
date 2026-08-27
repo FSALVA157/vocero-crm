@@ -1,3 +1,4 @@
+import { can } from "@/lib/auth/permissions";
 import { requireSession, UnauthorizedError } from "@/lib/auth/session";
 import { subscribe } from "@/server/events/bus";
 
@@ -20,6 +21,11 @@ export async function GET(req: Request) {
       return new Response("No autenticado", { status: 401 });
     }
     throw err;
+  }
+  // Gate de permiso a mano: esta ruta no usa withAuth porque el SSE necesita
+  // devolver texto plano y quedarse con el stream abierto (spec 004).
+  if (!can(session.role, "inbox.read")) {
+    return new Response("Sin permiso", { status: 403 });
   }
   const { organizationId } = session;
 

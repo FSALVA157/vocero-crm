@@ -6,6 +6,7 @@ import type { ConversationDto } from "@/lib/types";
 import { matchesQuery } from "@/lib/search";
 import { cn } from "@/lib/utils";
 import { ContactAvatar } from "@/components/avatar";
+import { usePuede } from "@/components/role-context";
 import { Button } from "@/components/ui/button";
 import { formatTime, previewText } from "./helpers";
 
@@ -20,6 +21,8 @@ const STAGE_DOT: Record<string, string> = {
 function EmptyState({ onSeeded }: { onSeeded: () => void }) {
   const [seeding, setSeeding] = useState(false);
   const [failed, setFailed] = useState(false);
+  // Cargar la demo escribe sobre la organización entera: solo el propietario.
+  const puedeSembrar = usePuede("seed.demo");
 
   async function seed() {
     setSeeding(true);
@@ -38,7 +41,7 @@ function EmptyState({ onSeeded }: { onSeeded: () => void }) {
         Cuando alguien escriba a tu número de WhatsApp, su conversación
         aparecerá aquí en tiempo real.
       </p>
-      {!failed && (
+      {puedeSembrar && !failed && (
         <Button
           size="sm"
           variant="outline"

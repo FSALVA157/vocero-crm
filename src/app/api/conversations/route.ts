@@ -12,4 +12,4 @@ export const GET = withAuth(async (session, req: Request) => {
     since && !Number.isNaN(since.getTime()) ? since : undefined
   );
   return Response.json({ conversations });
-});
+}, { permission: "inbox.read" });

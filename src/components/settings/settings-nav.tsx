@@ -2,20 +2,23 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { can, normalizeRole, type Permission } from "@/lib/auth/permissions";
 import { cn } from "@/lib/utils";
 
-const TABS = [
-  { href: "/settings/whatsapp", label: "WhatsApp" },
-  { href: "/settings/branding", label: "Marca" },
-  { href: "/settings/templates", label: "Plantillas" },
-  { href: "/settings/team", label: "Equipo" },
-] as const;
+const TABS: { href: string; label: string; permission: Permission }[] = [
+  { href: "/settings/whatsapp", label: "WhatsApp", permission: "settings.read" },
+  { href: "/settings/branding", label: "Marca", permission: "settings.branding.write" },
+  { href: "/settings/templates", label: "Plantillas", permission: "templates.write" },
+  { href: "/settings/team", label: "Equipo", permission: "team.read" },
+];
 
-export function SettingsNav() {
+export function SettingsNav({ role }: { role: string }) {
   const pathname = usePathname();
+  const rol = normalizeRole(role);
+  const tabs = TABS.filter((t) => can(rol, t.permission));
   return (
     <nav className="flex shrink-0 gap-1 overflow-x-auto border-b p-2 sm:w-44 sm:flex-col sm:space-y-1 sm:overflow-visible sm:border-b-0 sm:border-r sm:p-3">
-      {TABS.map((t) => (
+      {tabs.map((t) => (
         <Link
           key={t.href}
           href={t.href}

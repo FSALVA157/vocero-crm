@@ -70,8 +70,10 @@ async function main() {
   }
 
   console.log("== Setup: registro/login + conexión WhatsApp ==");
-  const email = "e2e@vocero.test";
-  const password = "password-e2e-123";
+  // En una instancia ya en uso el registro está cerrado: se apunta al
+  // propietario existente con E2E_OWNER_EMAIL/E2E_OWNER_PASSWORD.
+  const email = process.env.E2E_OWNER_EMAIL ?? "e2e@vocero.test";
+  const password = process.env.E2E_OWNER_PASSWORD ?? "password-e2e-123";
   let su = await api("/api/auth/sign-up/email", {
     method: "POST",
     body: JSON.stringify({ email, password, name: "Operador E2E" }),

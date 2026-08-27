@@ -19,6 +19,7 @@ import { formatMoneyCents, sumable } from "@/lib/money";
 import { cn } from "@/lib/utils";
 import { ContactAvatar } from "@/components/avatar";
 import { Button } from "@/components/ui/button";
+import { usePuede } from "@/components/role-context";
 import { formatTime } from "@/components/inbox/helpers";
 import { StageManager } from "./stage-manager";
 import { LossReasonDialog } from "./loss-reason-dialog";
@@ -39,6 +40,8 @@ export type BoardLead = {
 };
 
 export function PipelineClient() {
+  // Mover tarjetas es trabajo de operador; crear y borrar etapas, no.
+  const puedeGestionarEtapas = usePuede("pipeline.stages.write");
   const [stages, setStages] = useState<StageDto[]>([]);
   const [currency, setCurrency] = useState("MXN");
   const [leads, setLeads] = useState<BoardLead[]>([]);
@@ -174,9 +177,11 @@ export function PipelineClient() {
     <div className="flex h-full flex-col">
       <header className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3 sm:px-6 sm:py-4">
         <h2 className="font-semibold">Pipeline</h2>
+        {puedeGestionarEtapas && (
         <Button variant="outline" size="sm" onClick={() => setManaging(true)}>
           <Settings2 className="h-4 w-4" /> Gestionar etapas
         </Button>
+        )}
       </header>
 
       {/* El tablero se arrastra en horizontal; en el teléfono cada columna
