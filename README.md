@@ -350,6 +350,23 @@ SemVer sobre lo que le importa a quien opera una instancia:
 
 La versión vive en `package.json` y se sube en el PR que publica el cambio.
 
+### 2.0.0 — Roles y permisos
+
+Vocero pasa de "todo el que entra puede todo" a **tres roles**: Propietario,
+Administrador y Operador (ver [Multi-usuario](#-plantillas--multi-usuario--self-hosted)).
+
+Es versión mayor por una sola razón: **si tu instancia ya tenía cuentas de
+equipo, revisa sus roles después de actualizar.** Todas conservan el valor
+`member` que tenían, que ahora significa Operador — siguen entrando, con su
+bandeja, contactos y pipeline intactos, pero pierden el Agente, el knowledge
+base, el Laboratorio y la gestión de etapas hasta que el propietario las
+promueva a Administrador en **Configuración → Equipo**.
+
+No hay migración de base de datos: actualizar es redesplegar, y volver atrás
+es redesplegar el commit anterior. Se descartó convertir las cuentas
+existentes en bloque porque habría repartido privilegios en silencio, que es
+justo lo que esta versión viene a corregir.
+
 ## Roadmap
 
 - Multimedia completa en la bandeja (hoy: indicador de tipo).

@@ -3,7 +3,7 @@
 **Carril**: ligero (Principio VI). No toca el modelo de datos ni un contrato
 publicado: `member.role` ya existe como `text`. Escrito ANTES de programar.
 
-**Versión objetivo**: 1.3.0 · **Rama**: `feat/roles-y-permisos`
+**Versión objetivo**: 2.0.0 · **Rama**: `feat/roles-y-permisos`
 
 ## El problema
 
@@ -129,11 +129,17 @@ Se descartó convertir automáticamente `member` → `admin` en el despliegue:
 sería una migración de datos —lo que obliga a subir de carril— y repartiría
 privilegios en silencio, que es justo lo que esta feature viene a corregir.
 
-**Supuesto declarado**: la instancia de producción de referencia solo tiene la
-cuenta del propietario, así que la promoción no le aplica a nadie. Si una
-instancia sí tiene cuentas de equipo, su nota de publicación debe pedir al
-dueño que revise los roles, y el cambio es mayor (`2.0.0`) para esa instancia
-según la tabla de versiones del README.
+**Comprobado antes de desplegar**: la instancia de producción de referencia
+tiene DOS cuentas —el propietario y un miembro—, así que la promoción sí le
+aplica a alguien. Por eso esta versión es **mayor (`2.0.0`)** y no menor: la
+tabla del README reserva el mayor para cuando actualizar exige una acción
+manual, y aquí el propietario debe decidir si ese miembro sigue configurando
+el agente (→ Administrador) o pasa a atender solamente (→ Operador, que es
+donde queda por defecto).
+
+Nada se rompe al desplegar: el miembro conserva su sesión, la bandeja, los
+contactos y el pipeline. Lo que pierde hasta que lo promuevan es el Agente, el
+knowledge base, el Laboratorio y la gestión de etapas.
 
 ## Qué se decidió NO hacer
 
