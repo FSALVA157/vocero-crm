@@ -364,6 +364,29 @@ SemVer sobre lo que le importa a quien opera una instancia:
 
 La versión vive en `package.json` y se sube en el PR que publica el cambio.
 
+### 3.2.0 — Cola durable del agente y rol `worker`
+
+Los turnos del agente ya no viven en la memoria del proceso: van a una cola en
+Postgres (tabla `agent_job`). Un reinicio a mitad de turno —un deploy, un
+crash— ya no pierde la respuesta: el siguiente proceso la retoma. Las ráfagas
+de mensajes siguen produciendo UNA respuesta, y varios procesos contra la misma
+base nunca responden dos veces.
+
+Actualizar es redesplegar. Por defecto nada cambia (`ROLE=all`: el contenedor
+sirve la app y consume la cola). Si quieres separar el trabajo del agente:
+
+```
+app    → ROLE=web      (sirve la app, no consume)
+worker → ROLE=worker   (la MISMA imagen; consume la cola, no sirve la app)
+```
+
+Los eventos en tiempo real cruzan procesos por `LISTEN/NOTIFY` de Postgres:
+lo que responde el worker aparece en la bandeja sin refrescar. Sin Redis ni
+servicios nuevos. El barrido de corridas del Laboratorio pasa a heartbeat: un
+proceso que arranca ya no marca fallidas las corridas de otro.
+
+Variables opcionales en `.env.example` (sección *Escalado*).
+
 ### 3.0.0 — Multitenencia real (secretos por organización)
 
 Una instancia puede alojar **varios negocios completamente aislados**. Lo que
@@ -556,6 +579,7 @@ pnpm test                                  # unit (Vitest)
 pnpm vitest run tests/unit/tenant.test.ts  # un archivo
 pnpm vitest run -t "nombre del caso"       # un caso
 pnpm test:e2e                              # arnés E2E contra la app viva
+pnpm test:e2e:cola                         # cola durable + worker + SSE entre procesos
 ```
 
 `pnpm test:e2e` requiere la app corriendo, la BD migrada y los mocks

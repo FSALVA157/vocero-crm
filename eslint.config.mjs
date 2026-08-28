@@ -10,6 +10,7 @@ const config = [
       "dist/**",
       "drizzle/**",
       "scripts/**",
+      ".tmp-*.mjs",
       "next-env.d.ts",
       ".tmp-seed-demo.mjs",
     ],

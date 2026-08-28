@@ -5,10 +5,10 @@
  */
 export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME === "nodejs") {
-    const { cleanupOrphanRuns, adoptEnvSecrets } = await import(
-      "./instrumentation-node"
-    );
+    const { cleanupOrphanRuns, adoptEnvSecrets, startBackgroundWork } =
+      await import("./instrumentation-node");
     await cleanupOrphanRuns();
     await adoptEnvSecrets();
+    await startBackgroundWork();
   }
 }

@@ -6,6 +6,7 @@ import { runAgentTurn } from "@/server/ai/pipeline";
 import { renderKb } from "@/server/ai/prompts";
 import { computeScore, judgeCase } from "@/server/lab/judge";
 import { PERSONAS, type Persona } from "@/server/lab/personas";
+import { heartbeatRun } from "@/server/lab/sweep";
 
 /**
  * Runner del Laboratorio (FR-030/FR-034): corrida en segundo plano DENTRO del
@@ -19,6 +20,8 @@ import { PERSONAS, type Persona } from "@/server/lab/personas";
  */
 
 const RUN_TIMEOUT_MS = 10 * 60 * 1000;
+/** 006: señal de vida de la corrida, para que el barrido no la confunda con huérfana. */
+const RUN_HEARTBEAT_MS = 15_000;
 
 export class RunConflictError extends Error {}
 
@@ -68,10 +71,17 @@ async function executeRun(
       RUN_TIMEOUT_MS
     )
   );
+  const beat = setInterval(() => {
+    heartbeatRun(runId).catch((err) =>
+      console.error("[lab] heartbeat falló:", err)
+    );
+  }, RUN_HEARTBEAT_MS);
   try {
     await Promise.race([runAllCases(runId, organizationId), timeout]);
   } catch (err) {
     await failRun(runId, organizationId, String(err));
+  } finally {
+    clearInterval(beat);
   }
 }
 

@@ -3,7 +3,6 @@ import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
 import { scoped } from "@/lib/db/tenant";
 import { moveLeadToStage as moveLeadThroughHistory } from "@/server/leads/stage-history";
-import { getEnv } from "@/lib/env";
 import { isAiConfiguredFor } from "@/server/ai/config";
 import { chatJson, type ChatMessage } from "@/lib/ai";
 import { publish } from "@/server/events/bus";
@@ -16,70 +15,10 @@ import { buildAgentSystemPrompt } from "@/server/ai/prompts";
 /**
  * Turno del agente (FR-021..FR-025).
  *
- * Coalesce + lock in-process por conversación: ráfagas de mensajes → UNA
- * respuesta; nunca dos turnos simultáneos; lo que llega durante un turno
- * re-encola exactamente un turno más. Suficiente para el monolito de una
- * instancia (sin colas externas — Constitución II).
+ * 006: el coalescing y el lock por conversación viven en la cola de Postgres
+ * (server/jobs/agent-queue.ts), no aquí. Este módulo solo sabe EJECUTAR un
+ * turno; lo llaman el consumidor de la cola y el Laboratorio.
  */
-
-type CoalesceEntry = {
-  timer: ReturnType<typeof setTimeout> | null;
-  running: boolean;
-  pending: boolean;
-};
-
-const globalForAgent = globalThis as unknown as {
-  __agentCoalesce?: Map<string, CoalesceEntry>;
-};
-
-function coalesceMap(): Map<string, CoalesceEntry> {
-  if (!globalForAgent.__agentCoalesce) {
-    globalForAgent.__agentCoalesce = new Map();
-  }
-  return globalForAgent.__agentCoalesce;
-}
-
-/** Punto de entrada con debounce (mensajes entrantes reales). */
-export function scheduleAgentTurn(conversationId: string): void {
-  const map = coalesceMap();
-  const entry = map.get(conversationId) ?? {
-    timer: null,
-    running: false,
-    pending: false,
-  };
-  map.set(conversationId, entry);
-
-  if (entry.running) {
-    entry.pending = true; // se re-encola al terminar el turno actual
-    return;
-  }
-  if (entry.timer) clearTimeout(entry.timer);
-  const delay = getEnv().AGENT_COALESCE_MS;
-  entry.timer = setTimeout(() => {
-    entry.timer = null;
-    void executeTurn(conversationId);
-  }, delay);
-}
-
-async function executeTurn(conversationId: string): Promise<void> {
-  const map = coalesceMap();
-  const entry = map.get(conversationId);
-  if (!entry || entry.running) return;
-  entry.running = true;
-  try {
-    await runAgentTurn(conversationId);
-  } catch (err) {
-    console.error("[agente] turno falló:", err);
-  } finally {
-    entry.running = false;
-    if (entry.pending) {
-      entry.pending = false;
-      void executeTurn(conversationId);
-    } else {
-      map.delete(conversationId);
-    }
-  }
-}
 
 /**
  * Ejecuta UN turno del agente ahora (el Laboratorio lo llama directo, con

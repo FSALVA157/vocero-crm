@@ -18,7 +18,15 @@ conducidos con Playwright · Docker multi-stage (standalone, healthcheck
 
 Tiempo real por **SSE** (`/api/events`): heartbeat `: ping` ~25s, headers
 anti-buffering, catch-up por refetch con `since=`. Sin WebSockets, sin colas
-externas: el trabajo en segundo plano (agente, Laboratorio) es in-process.
+externas. Desde 006 (3.2.0) el turno del agente va a una **cola en Postgres**
+(`agent_job`, `FOR UPDATE SKIP LOCKED`) y el bus SSE cruza procesos por
+`LISTEN/NOTIFY`; el Laboratorio sigue in-process con heartbeat. `ROLE=all`
+(default) sirve y consume; `ROLE=web` solo sirve; `ROLE=worker`
+(`scripts/worker.ts`, misma imagen) solo consume.
+
+**Gotcha en dev**: el consumidor arranca en `instrumentation.ts` y `next dev`
+NO lo recarga en caliente — tras tocar `src/server/jobs/*`, `events/bus.ts` o
+`startup/background.ts`, reinicia `pnpm dev` o seguirás probando código viejo.
 
 ## Levantar el entorno de desarrollo
 
@@ -91,6 +99,9 @@ No corre E2E: eso es tuyo antes de declarar "Hecho".
 | Adoptar secretos del `.env` al actualizar | `src/server/startup/adopt-env-secrets.ts` (corre en `instrumentation.ts`) |
 | Quién puede registrarse / crear empresa | `src/server/auth/registration.ts` (código de invitación) + `on-signup.ts` (crea org solo en registro público) |
 | Organización activa de una sesión | `src/server/auth/membership.ts` → `session.activeOrganizationId`; cambio en `POST /api/organizations/switch` |
+| La cola del agente (encolar/reclamar/reintentos) | `src/server/jobs/agent-queue.ts` (SQL) + `agent-consumer.ts` (loop) |
+| Qué levanta cada `ROLE` | `src/server/startup/background.ts` |
+| El bus de eventos entre procesos | `src/server/events/bus.ts` (`publish` = local + NOTIFY; `startEventBridge` = LISTEN) |
 | UI | `src/components/` + `src/app/(app)/` |
 
 Los mocks del entorno de pruebas viven en `src/app/api/dev/` (wa-mock +

@@ -588,6 +588,12 @@ export const agentTestRun = pgTable(
     error: text("error"),
     startedAt: timestamp("started_at").notNull().defaultNow(),
     finishedAt: timestamp("finished_at"),
+    /**
+     * 006: última señal de vida del proceso que ejecuta la corrida. El barrido
+     * de huérfanas solo toca corridas sin heartbeat reciente, así reiniciar
+     * un proceso no mata las corridas de otro. NULL en filas anteriores.
+     */
+    heartbeatAt: timestamp("heartbeat_at"),
   },
   (t) => [
     // Lock de concurrencia en BD: máximo 1 corrida activa por organización.
@@ -623,4 +629,51 @@ export const agentTestCase = pgTable(
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (t) => [index("test_case_run_idx").on(t.runId)]
+);
+
+/* ============================================================
+ * 006 — Cola durable del agente
+ * ============================================================ */
+
+/**
+ * Turno pendiente/en curso del agente para una conversación. Reemplaza el
+ * Map+setTimeout in-process: sobrevive a reinicios y admite N consumidores
+ * (reclamo con FOR UPDATE SKIP LOCKED en server/jobs/agent-queue.ts).
+ */
+export const agentJob = pgTable(
+  "agent_job",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    conversationId: text("conversation_id")
+      .notNull()
+      .references(() => conversation.id, { onDelete: "cascade" }),
+    status: text("status", { enum: ["pending", "running", "done", "failed"] })
+      .notNull()
+      .default("pending"),
+    /** Debounce: el job no se reclama antes de esta hora. */
+    runAfter: timestamp("run_after").notNull().defaultNow(),
+    /** Llegó otro mensaje mientras corría: al terminar va exactamente UN turno más. */
+    requeue: boolean("requeue").notNull().default(false),
+    attempts: integer("attempts").notNull().default(0),
+    maxAttempts: integer("max_attempts").notNull().default(3),
+    /** Heartbeat del consumidor mientras está `running`. */
+    lockedAt: timestamp("locked_at"),
+    lockedBy: text("locked_by"),
+    lastError: text("last_error"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+    finishedAt: timestamp("finished_at"),
+  },
+  (t) => [
+    // Coalescing: a lo sumo UN job activo por conversación (y destino del
+    // ON CONFLICT al encolar).
+    uniqueIndex("agent_job_conv_active_uq")
+      .on(t.conversationId)
+      .where(sql`${t.status} IN ('pending', 'running')`),
+    index("agent_job_claim_idx").on(t.status, t.runAfter),
+    index("agent_job_org_idx").on(t.organizationId, t.createdAt),
+  ]
 );
