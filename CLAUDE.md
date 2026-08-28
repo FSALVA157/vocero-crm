@@ -89,6 +89,8 @@ No corre E2E: eso es tuyo antes de declarar "Hecho".
 | La clave del bot externo | `src/server/bot/keys.ts` (hash) → `requireBotAuth(req)` devuelve la organización |
 | El token del webhook de una organización | `src/server/org/webhook-token.ts` |
 | Adoptar secretos del `.env` al actualizar | `src/server/startup/adopt-env-secrets.ts` (corre en `instrumentation.ts`) |
+| Quién puede registrarse / crear empresa | `src/server/auth/registration.ts` (código de invitación) + `on-signup.ts` (crea org solo en registro público) |
+| Organización activa de una sesión | `src/server/auth/membership.ts` → `session.activeOrganizationId`; cambio en `POST /api/organizations/switch` |
 | UI | `src/components/` + `src/app/(app)/` |
 
 Los mocks del entorno de pruebas viven en `src/app/api/dev/` (wa-mock +
@@ -145,6 +147,12 @@ Deprecadas y adoptadas UNA vez al arrancar si la instancia tiene una sola
 organización: `META_WEBHOOK_VERIFY_TOKEN`, `META_APP_SECRET`,
 `OPENROUTER_API_TOKEN`/`_MODEL`/`_JUDGE_MODEL`, `BOT_API_KEY`. `ALLOW_SIGNUP`
 quedó sin efecto: la reemplaza `SIGNUP_INVITE_CODE`.
+
+El plugin `organization` de Better Auth monta endpoints públicos bajo
+`/api/auth/organization/*`. Están configurados con
+`allowUserToCreateOrganization: false` y `disableOrganizationDeletion: true`:
+no los reabras — cualquier sesión podría crear empresas saltándose el código, o
+borrar la suya con todo lo que cuelga.
 
 Para el self-test local existe además el modo de pruebas interno (mocks) —
 ver `specs/001-vocero-core/quickstart.md`. Nunca actives mocks en producción.

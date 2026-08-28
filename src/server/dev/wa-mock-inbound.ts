@@ -1,5 +1,5 @@
 import { createHmac } from "node:crypto";
-import { nextN } from "@/server/dev/wa-mock-state";
+import { nextEchoWamid, nextInboundWamid, nextN } from "@/server/dev/wa-mock-state";
 import { ensureWebhookToken } from "@/server/org/webhook-token";
 import { getAppSecretByOrg } from "@/server/whatsapp/credentials";
 
@@ -89,7 +89,7 @@ export function buildInboundPayload(input: {
 } & MockMediaInput) {
   const type = input.type ?? "text";
   const message: Record<string, unknown> = {
-    id: input.waMessageId ?? `wamid.mock.in.${nextN()}`,
+    id: input.waMessageId ?? nextInboundWamid(),
     timestamp: String(input.timestamp ?? Math.floor(Date.now() / 1000)),
     type,
   };
@@ -147,7 +147,7 @@ export function buildEchoPayload(input: {
 } & MockMediaInput) {
   const type = input.type ?? "text";
   const message: Record<string, unknown> = {
-    id: input.waMessageId ?? `wamid.mock.echo.${nextN()}`,
+    id: input.waMessageId ?? nextEchoWamid(),
     timestamp: String(input.timestamp ?? Math.floor(Date.now() / 1000)),
     type,
     from: input.from ?? "5215500000000",

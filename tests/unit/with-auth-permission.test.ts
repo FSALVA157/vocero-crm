@@ -9,12 +9,26 @@ let hayMembresia = true;
 vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
 vi.mock("@/lib/auth", () => ({
   getAuth: () => ({
-    api: { getSession: async () => ({ user: { id: "u_1" } }) },
+    api: {
+      getSession: async () => ({
+        user: { id: "u_1" },
+        session: { activeOrganizationId: null },
+      }),
+    },
   }),
 }));
-vi.mock("@/server/auth/on-signup", () => ({
-  resolveMembership: async () =>
-    hayMembresia ? { organizationId: "org_1", role } : null,
+// 005: la membresía activa se resuelve en server/auth/membership.
+vi.mock("@/server/auth/membership", () => ({
+  resolveActiveMembership: async () =>
+    hayMembresia
+      ? {
+          organizationId: "org_1",
+          organizationName: "Org 1",
+          organizationSlug: "org-1",
+          role,
+          createdAt: new Date(),
+        }
+      : null,
 }));
 
 import { withAuth } from "@/lib/api";

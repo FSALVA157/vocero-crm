@@ -53,6 +53,9 @@ const login = async (ctx, email, password) =>
     body: JSON.stringify({ email, password }),
   });
 
+// Entorno de pruebas: vacía el limitador de login para que los arneses puedan
+// correr seguidos (en producción la ruta no existe: 404 y se ignora).
+await fetch(`${BASE}/api/dev/rate-limit`, { method: "DELETE" }).catch(() => {});
 console.log("== Setup: propietario ==");
 const owner = sesion();
 // El propietario ya existe en una instancia en uso: se puede apuntar a él con

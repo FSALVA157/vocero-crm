@@ -156,19 +156,19 @@ antes de empezar B.
 
 ## Phase 7: US4 — Alta con código de invitación (P2) — tajada B
 
-- [ ] T033 [US4] `src/server/auth/registration.ts`: `isPublicSignupAllowed({ inviteCode })`
+- [X] T033 [US4] `src/server/auth/registration.ts`: `isPublicSignupAllowed({ inviteCode })`
       — instancia vacía → sí; `SIGNUP_INVITE_CODE` definido y coincide
       (timing-safe) → sí; resto → no. `ALLOW_SIGNUP` ignorada
-- [ ] T034 [US4] `src/lib/auth/index.ts`: el hook `before` de `/sign-up/email`
+- [X] T034 [US4] `src/lib/auth/index.ts`: el hook `before` de `/sign-up/email`
       lee `inviteCode` del body; el `AsyncLocalStorage` pasa a llevar la
       intención `{ kind: "public" | "team" }`
-- [ ] T035 [US4] `src/server/auth/on-signup.ts`: `onUserCreated` crea
+- [X] T035 [US4] `src/server/auth/on-signup.ts`: `onUserCreated` crea
       organización SOLO con intención `public` (sin conteo); slug T007;
       `webhook_token` T007; etapas + perfil como hoy
-- [ ] T036 [US4] `src/app/(auth)/register/page.tsx`: campo "Código de
+- [X] T036 [US4] `src/app/(auth)/register/page.tsx`: campo "Código de
       invitación" (oculto si `GET /api/auth/signup-policy` dice que no hace
       falta); mensajes 403 diferenciados
-- [ ] T037 [P] [US4] `tests/unit/registration.test.ts` reescrito (4 casos de
+- [X] T037 [P] [US4] `tests/unit/registration.test.ts` reescrito (4 casos de
       política) + `tests/unit/on-signup.test.ts` (intención pública crea org;
       equipo no)
 
@@ -176,48 +176,48 @@ antes de empezar B.
 
 ## Phase 8: US5 — Una persona en varias organizaciones (P2)
 
-- [ ] T038 [US5] `src/server/auth/membership.ts`: `listMemberships(userId)`,
+- [X] T038 [US5] `src/server/auth/membership.ts`: `listMemberships(userId)`,
       `resolveActiveMembership(userId, activeOrganizationId)` (activa si hay
       membresía; si no, la más antigua); `src/lib/auth/session.ts` la usa
-- [ ] T039 [US5] `src/app/api/organizations/route.ts` (GET) y
+- [X] T039 [US5] `src/app/api/organizations/route.ts` (GET) y
       `organizations/switch/route.ts` (POST → valida membresía → persiste
       `session.activeOrganizationId` vía Better Auth `set-active`)
-- [ ] T040 [US5] `src/components/org-switcher.tsx` en `app-nav.tsx` (solo con
+- [X] T040 [US5] `src/components/org-switcher.tsx` en `app-nav.tsx` (solo con
       2+ membresías); tras cambiar: `router.refresh()`
-- [ ] T041 [US5] `src/app/api/settings/team/route.ts`: correo existente →
+- [X] T041 [US5] `src/app/api/settings/team/route.ts`: correo existente →
       membresía (rol pedido) sin contraseña, `existingUser: true`;
       `team-client.tsx`: contraseña opcional con explicación
-- [ ] T042 [US5] `src/app/(app)/sin-organizacion/page.tsx` + redirección desde
+- [X] T042 [US5] `src/app/(app)/sin-organizacion/page.tsx` + redirección desde
       `(app)/layout.tsx` cuando la sesión existe pero no hay membresía
       (reemplaza el bucle login↔inbox)
-- [ ] T043 [P] [US5] `tests/unit/membership.test.ts` (activa válida; activa
+- [X] T043 [P] [US5] `tests/unit/membership.test.ts` (activa válida; activa
       revocada → cae a la más antigua; sin membresías → null)
 
 ---
 
 ## Phase 9: US6 — La instancia no delata a nadie (P3)
 
-- [ ] T044 [US6] `src/server/branding.ts`: sin sesión → si
+- [X] T044 [US6] `src/server/branding.ts`: sin sesión → si
       `count(organization) > 1` devolver `DEFAULT_BRANDING` (y favicon
       público igual)
-- [ ] T045 [US6] `scripts/seed/demo.ts`: `--org <slug>`; con varias orgs y sin
+- [X] T045 [US6] `scripts/seed/demo.ts`: `--org <slug>`; con varias orgs y sin
       `--org` → lista y sale 1
 
 ---
 
 ## Phase 10: Polish B
 
-- [ ] T046 `scripts/e2e-multi-org.mjs` + `tests/e2e/us-multi-org.md`: dos
+- [X] T046 `scripts/e2e-multi-org.mjs` + `tests/e2e/us-multi-org.md`: dos
       organizaciones (código de invitación), dos números, inbound por cada
       webhook → bandeja correcta; cruzado → descartado; bot key cruzada →
       404; IA por org (ai-mock `calls` con last4 distintos; org sin clave →
       `not_configured`); usuario en dos orgs → switch cambia `/api/contacts`
       y el rol; sin membresía → pantalla, no bucle
-- [ ] T047 [P] Playwright: pantalla IA, Integraciones (clave una vez),
+- [X] T047 [P] Playwright: pantalla IA, Integraciones (clave una vez),
       registro con código, switcher, sin-organización
-- [ ] T048 [P] README/CLAUDE.md: "Multi-organización" (código de invitación,
+- [X] T048 [P] README/CLAUDE.md: "Multi-organización" (código de invitación,
       switcher, qué es de instancia y qué de organización); quickstart validado
-- [ ] T049 Memoria de sesión: coordenadas nuevas del entorno local (código de
+- [X] T049 Memoria de sesión: coordenadas nuevas del entorno local (código de
       invitación, segunda org de prueba)
 
 ---

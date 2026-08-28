@@ -10,7 +10,10 @@ import {
   onUserCreated,
   resolveActiveOrganizationId,
 } from "@/server/auth/on-signup";
-import { isPublicSignupAllowed } from "@/server/auth/registration";
+import {
+  getSignupPolicy,
+  isPublicSignupAllowed,
+} from "@/server/auth/registration";
 
 /**
  * Contexto interno del proceso: permite que el alta de cuentas de equipo
@@ -62,7 +65,18 @@ function createAuth() {
       requireEmailVerification: false,
       minPasswordLength: 8,
     },
-    plugins: [organization({ creatorRole: "owner" })],
+    plugins: [
+      organization({
+        creatorRole: "owner",
+        // 005 — el plugin monta endpoints públicos bajo /api/auth/organization/*.
+        // Sin estas dos opciones, CUALQUIER sesión (un operador incluido) podía
+        // crear una organización nueva y quedar como su propietario, saltándose
+        // el código de invitación; y un propietario podía borrar la suya con
+        // todo lo que cuelga. Comprobado en vivo antes de cerrarlo.
+        allowUserToCreateOrganization: false,
+        disableOrganizationDeletion: true,
+      }),
+    ],
     hooks: {
       before: createAuthMiddleware(async (ctx) => {
         // Rate limit por IP en login/registro (FR-062): 10 / 10 min → 429.
@@ -78,12 +92,19 @@ function createAuth() {
             });
           }
         }
-        // Registro público cerrado tras la primera organización (FR-060).
-        if (ctx.path === "/sign-up/email") {
-          if (!isInternalSignup() && !(await isPublicSignupAllowed())) {
+        // Registro público: abierto en instancia vacía, con código de
+        // invitación si hay organizaciones y SIGNUP_INVITE_CODE, cerrado si no
+        // (005, FR-109). El código viaja en cabecera: así no depende de qué
+        // campos acepte el body del plugin.
+        if (ctx.path === "/sign-up/email" && !isInternalSignup()) {
+          const inviteCode = ctx.headers?.get("x-signup-invite-code");
+          if (!(await isPublicSignupAllowed(inviteCode))) {
+            const policy = await getSignupPolicy();
             throw new APIError("FORBIDDEN", {
               message:
-                "El registro está cerrado: esta instancia ya tiene su organización",
+                policy === "invite"
+                  ? "Código de invitación inválido"
+                  : "El registro está cerrado en esta instancia",
             });
           }
         }
@@ -93,7 +114,11 @@ function createAuth() {
       user: {
         create: {
           after: async (user) => {
-            await onUserCreated(user.id, user.name);
+            // La intención viene del contexto: el alta interna (equipo) NO
+            // crea organización; el registro público sí (005, DV-MO-06).
+            await onUserCreated(user.id, user.name, {
+              createOrganization: !isInternalSignup(),
+            });
           },
         },
       },

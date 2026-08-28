@@ -10,12 +10,15 @@ import { resolveBuildCommit } from "@/lib/version";
 export default async function AppLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const session = await getSessionOrNull();
-  if (!session) redirect("/login");
-  const branding = await getBranding(session.organizationId);
   const authSession = await getAuth().api.getSession({
     headers: await headers(),
   });
+  if (!authSession) redirect("/login");
+  // 005: hay sesión pero ninguna membresía → se explica, no se rebota al
+  // login (que volvería a mandar aquí: era un bucle).
+  const session = await getSessionOrNull();
+  if (!session) redirect("/sin-organizacion");
+  const branding = await getBranding(session.organizationId);
   const theme = normalizeThemePreference(
     (await cookies()).get(THEME_COOKIE)?.value
   );

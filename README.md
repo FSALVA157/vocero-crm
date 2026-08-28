@@ -117,9 +117,19 @@ llaves del negocio:
 | **Operador** | Atiende: bandeja, contactos y pipeline. No entra a la configuración. |
 
 Las cuentas las crea el propietario desde Configuración → Equipo eligiendo el
-rol (el registro público se cierra tras la primera organización). Sin correos
-ni invitaciones: comparte tú la contraseña temporal. Cambiar el rol de alguien
-surte efecto en su siguiente clic, y quitarlo lo desconecta al instante.
+rol. Sin correos ni invitaciones: comparte tú la contraseña temporal. Si el
+correo ya tiene cuenta en la instancia, se le da membresía sin pedir
+contraseña. Cambiar el rol de alguien surte efecto en su siguiente clic, y
+quitarlo lo desconecta al instante.
+
+**Varias empresas en una instancia, aisladas por completo.** Cada organización
+tiene su número de WhatsApp, su URL de webhook, su clave de IA y su clave de
+bot; nada de una llega a otra. Para dar de alta una empresa nueva, define
+`SIGNUP_INVITE_CODE` y comparte el código: quien lo tenga se registra en
+`/register` y queda como propietario de su propia empresa. Sin la variable, el
+registro sigue cerrado tras la primera organización. Una misma persona puede
+pertenecer a varias empresas (si cada una la agrega a su equipo) y cambiar
+entre ellas desde el selector de la barra lateral.
 
 ## Requisitos
 
@@ -379,6 +389,15 @@ recomienda regenerarla desde Configuración → Integraciones.
 
 Es versión mayor porque cambian dos contratos publicados (el webhook y la
 autenticación de `/api/bot/*`) y el significado de esas variables.
+
+**Alta de empresas y cambio de organización (3.1.0).** Con
+`SIGNUP_INVITE_CODE` definido, el registro público crea una empresa nueva por
+código. Una persona puede estar en varias y cambiar desde la barra lateral.
+Con dos o más empresas, el login muestra la marca neutra de Vocero. Se
+cerraron además dos puertas del plugin de autenticación que venían abiertas
+desde la v1: cualquier sesión podía crear una organización por
+`/api/auth/organization/create`, y un propietario podía borrar la suya entera
+por `/api/auth/organization/delete`.
 
 ### 2.0.0 — Roles y permisos
 
