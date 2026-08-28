@@ -12,7 +12,14 @@ export function safeEqual(a: string, b: string): boolean {
   return timingSafeEqual(ha, hb);
 }
 
-/** Capa 1: el segmento de la ruta debe coincidir con el verify token. */
+/**
+ * Capa 1: el segmento de la ruta debe coincidir con el verify token.
+ *
+ * 005: el token ya no es de la instancia sino de UNA organización; quien
+ * resuelve cuál es `findOrgByWebhookToken` (necesita BD y este módulo es puro).
+ * Esta función se conserva para comparar el `hub.verify_token` del handshake
+ * contra el token de esa organización.
+ */
 export function isValidWebhookToken(
   segment: string,
   verifyToken: string

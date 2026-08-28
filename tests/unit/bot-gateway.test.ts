@@ -1,12 +1,27 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { requireBotKey } from "@/server/bot/auth";
 import { mergeFicha, normalizeFicha } from "@/server/bot/ficha";
 import { toHandoffReason } from "@/server/bot/handoff";
 import { resetRateLimit } from "@/lib/rate-limit";
 
-/** La puerta de toda la superficie `/api/bot/*`. */
+/**
+ * La puerta de toda la superficie `/api/bot/*`.
+ *
+ * 005: la clave ya no se compara contra el entorno — RESUELVE la organización.
+ * Ese cambio es el que cierra el agujero: antes una clave de instancia operaba
+ * sobre la primera organización que devolviera Postgres.
+ */
 
-const KEY = "clave-de-servicio-larga-0123456789abcdef";
+const KEY_A = "vok_clave-de-la-organizacion-A-0123456789";
+const KEY_B = "vok_clave-de-la-organizacion-B-0123456789";
+
+const claves = new Map<string, string>();
+
+vi.mock("@/server/bot/keys", () => ({
+  resolveOrgByBotKey: async (provided: string) =>
+    claves.get(provided) ?? null,
+}));
+
+const { isBotAuth, requireBotAuth } = await import("@/server/bot/auth");
 
 function reqWith(key?: string): Request {
   return new Request("http://localhost/api/bot/context", {
@@ -14,39 +29,51 @@ function reqWith(key?: string): Request {
   });
 }
 
-describe("requireBotKey", () => {
+describe("requireBotAuth", () => {
   beforeEach(() => {
-    vi.stubEnv("BOT_API_KEY", KEY);
+    claves.clear();
+    claves.set(KEY_A, "org_a");
+    claves.set(KEY_B, "org_b");
     resetRateLimit();
   });
   afterEach(() => vi.unstubAllEnvs());
 
-  it("key correcta → pasa (null)", () => {
-    expect(requireBotKey(reqWith(KEY))).toBeNull();
+  it("cada clave resuelve SU organización", async () => {
+    const a = await requireBotAuth(reqWith(KEY_A));
+    const b = await requireBotAuth(reqWith(KEY_B));
+    expect(isBotAuth(a) && a.organizationId).toBe("org_a");
+    expect(isBotAuth(b) && b.organizationId).toBe("org_b");
   });
 
-  it("key incorrecta → 401", () => {
-    const res = requireBotKey(reqWith("otra-clave-igual-de-larga-pero-mala!!"));
-    expect(res?.status).toBe(401);
+  it("clave desconocida → 401", async () => {
+    const res = await requireBotAuth(reqWith("vok_no-existe-esta-clave-larga"));
+    expect(isBotAuth(res)).toBe(false);
+    if (!isBotAuth(res)) expect(res.status).toBe(401);
   });
 
-  it("sin header → 401", () => {
-    expect(requireBotKey(reqWith())?.status).toBe(401);
+  it("sin header → 401", async () => {
+    const res = await requireBotAuth(reqWith());
+    if (!isBotAuth(res)) expect(res.status).toBe(401);
   });
 
-  it("sin BOT_API_KEY configurada → 401 SIEMPRE (aunque manden algo)", () => {
-    vi.stubEnv("BOT_API_KEY", "");
-    expect(requireBotKey(reqWith("cualquier-cosa"))?.status).toBe(401);
+  it("organización sin clave generada → 401 (no hay clave de instancia)", async () => {
+    claves.clear();
+    const res = await requireBotAuth(reqWith(KEY_A));
+    if (!isBotAuth(res)) expect(res.status).toBe(401);
   });
 
-  it("key demasiado corta configurada → 401 (no se acepta una key débil)", () => {
-    vi.stubEnv("BOT_API_KEY", "corta");
-    expect(requireBotKey(reqWith("corta"))?.status).toBe(401);
+  it("longitudes distintas no filtran información (401 uniforme)", async () => {
+    const res = await requireBotAuth(reqWith("x"));
+    if (!isBotAuth(res)) expect(res.status).toBe(401);
   });
 
-  it("longitudes distintas no filtran información (401 uniforme)", () => {
-    const res = requireBotKey(reqWith("x"));
-    expect(res?.status).toBe(401);
+  it("el límite de tasa es POR organización: A no frena a B", async () => {
+    for (let i = 0; i < 600; i++) await requireBotAuth(reqWith(KEY_A));
+    const aLimitada = await requireBotAuth(reqWith(KEY_A));
+    const bLibre = await requireBotAuth(reqWith(KEY_B));
+    expect(isBotAuth(aLimitada)).toBe(false);
+    if (!isBotAuth(aLimitada)) expect(aLimitada.status).toBe(429);
+    expect(isBotAuth(bLibre)).toBe(true);
   });
 });
 

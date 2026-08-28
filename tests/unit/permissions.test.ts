@@ -51,6 +51,7 @@ describe("inclusión de roles", () => {
 describe("las llaves de la instancia son solo del propietario", () => {
   const SOLO_OWNER: Permission[] = [
     "settings.whatsapp.write",
+    "integrations.write",
     "team.write",
     "seed.demo",
   ];
@@ -72,6 +73,8 @@ describe("el operador atiende pero no configura", () => {
     "templates.read",
   ];
   const NO_PUEDE: Permission[] = [
+    "settings.ai.write",
+    "integrations.write",
     "agent.write",
     "templates.write",
     "pipeline.stages.write",
@@ -93,6 +96,7 @@ describe("el administrador configura el negocio, no la instancia", () => {
     "templates.write",
     "pipeline.stages.write",
     "settings.branding.write",
+    "settings.ai.write",
     "team.read",
   ] as Permission[])("admin SÍ puede %s", (p) => {
     expect(can("admin", p)).toBe(true);

@@ -1,11 +1,17 @@
 import type { z } from "zod";
-import { getEnv, isAiConfigured } from "@/lib/env";
+import { getEnv } from "@/lib/env";
+import { getAiConfig } from "@/server/ai/config";
 
 /**
  * Adaptador LLM OpenRouter-compatible — ÚNICA frontera con el proveedor de IA
  * (Constitución II). Regla operativa: la salida del modelo es impredecible;
  * todo consumo pasa por extracción robusta + Zod + reintentos, y un hipo del
  * proveedor jamás propaga excepción (resultado `error` tipado).
+ *
+ * 005 — la clave y el modelo son POR ORGANIZACIÓN: toda llamada declara para
+ * quién trabaja. No hay respaldo al entorno: una organización sin configurar
+ * devuelve `not_configured` en vez de gastar la clave de otra. `BASE_URL`
+ * sigue siendo de instancia porque existe para apuntar al ai-mock.
  */
 
 export type ChatMessage = {
@@ -23,26 +29,28 @@ const RETRY_DELAY_MS = 500;
 export async function chatJson<T>(
   schema: z.ZodType<T>,
   messages: ChatMessage[],
-  opts?: { model?: string; judge?: boolean; timeoutMs?: number }
+  opts: {
+    organizationId: string;
+    model?: string;
+    judge?: boolean;
+    timeoutMs?: number;
+  }
 ): Promise<ChatJsonResult<T>> {
-  if (!isAiConfigured()) {
+  const config = await getAiConfig(opts.organizationId);
+  if (!config) {
     return {
       ok: false,
       error: "not_configured",
-      detail: "Sin OPENROUTER_API_TOKEN configurado",
+      detail: "Esta organización no tiene proveedor de IA configurado",
     };
   }
-  const env = getEnv();
   const model =
-    opts?.model ??
-    (opts?.judge
-      ? (env.OPENROUTER_JUDGE_MODEL ?? env.OPENROUTER_MODEL)
-      : env.OPENROUTER_MODEL);
-  if (!model?.trim()) {
+    opts.model ?? (opts.judge ? (config.judgeModel ?? config.model) : config.model);
+  if (!model.trim()) {
     return {
       ok: false,
       error: "not_configured",
-      detail: "Sin OPENROUTER_MODEL configurado",
+      detail: "Sin modelo configurado para esta organización",
     };
   }
 
@@ -60,7 +68,12 @@ export async function chatJson<T>(
             },
           ];
     try {
-      const raw = await callProvider(model, attemptMessages, opts?.timeoutMs);
+      const raw = await callProvider(
+        model,
+        attemptMessages,
+        config.token,
+        opts.timeoutMs
+      );
       const extracted = extractJson(raw);
       if (extracted === null) {
         lastDetail = `sin JSON extraíble (raw=${truncate(raw)})`;
@@ -94,6 +107,7 @@ export async function chatJson<T>(
 async function callProvider(
   model: string,
   messages: ChatMessage[],
+  token: string,
   timeoutMs = 60_000
 ): Promise<string> {
   const env = getEnv();
@@ -103,8 +117,9 @@ async function callProvider(
     const res = await fetch(`${env.OPENROUTER_BASE_URL}/v1/chat/completions`, {
       method: "POST",
       headers: {
-        // El token jamás se loguea; solo viaja en este header.
-        Authorization: `Bearer ${env.OPENROUTER_API_TOKEN}`,
+        // El token jamás se loguea; solo viaja en este header. Es el de la
+        // organización que hizo la llamada, no uno de instancia.
+        Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ model, messages }),

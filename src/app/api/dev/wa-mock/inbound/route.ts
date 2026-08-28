@@ -12,6 +12,8 @@ export const dynamic = "force-dynamic";
 const schema = z
   .object({
     phoneNumberId: z.string().min(1),
+    /** 005: entregar a propósito por el webhook de OTRA organización. */
+    webhookToken: z.string().min(16).optional(),
     /** Teléfono; omítelo (con fromUserId) para simular un inbound BSUID (003). */
     from: z.string().min(5).optional(),
     fromUserId: z.string().min(3).optional(),
@@ -43,7 +45,11 @@ export async function POST(req: Request) {
     ...body.data,
     wabaId: creds?.wabaId ?? "WABA-MOCK",
   });
-  const res = await deliverToWebhook(payload);
+  const res = await deliverToWebhook(
+    payload,
+    creds?.organizationId ?? "",
+    body.data.webhookToken
+  );
   if (!res.ok) {
     return apiError(
       502,

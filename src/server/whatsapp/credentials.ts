@@ -72,16 +72,63 @@ export async function getCredentialsByOrg(
   return rows[0] ? toCredentials(rows[0]) : null;
 }
 
+/**
+ * App Secret de la organización, descifrado (005). Sustituye a
+ * `META_APP_SECRET` de instancia: cada empresa firma con el secreto de SU app
+ * de Meta.
+ */
+export async function getAppSecretByOrg(
+  organizationId: string
+): Promise<string | null> {
+  const db = getDb();
+  const rows = await db
+    .select({
+      cipher: schema.metaCredentials.appSecretCipher,
+      iv: schema.metaCredentials.appSecretIv,
+      tag: schema.metaCredentials.appSecretTag,
+    })
+    .from(schema.metaCredentials)
+    .where(scoped(schema.metaCredentials.organizationId, organizationId))
+    .limit(1);
+  const row = rows[0];
+  if (!row?.cipher || !row.iv || !row.tag) return null;
+  try {
+    return decryptSecret({ cipher: row.cipher, iv: row.iv, tag: row.tag });
+  } catch (err) {
+    // Clave de cifrado cambiada o dato manipulado: mejor sin capa 2 que caído.
+    console.error("[credentials] no se pudo descifrar el app secret:", err);
+    return null;
+  }
+}
+
 export async function saveCredentials(input: {
   organizationId: string;
   wabaId: string;
   phoneNumberId: string;
   token: string;
+  /** 005: opcional; si viene, reemplaza el guardado. */
+  appSecret?: string | null;
   displayPhoneNumber?: string | null;
   verifiedName?: string | null;
 }): Promise<void> {
   const db = getDb();
   const enc = encryptSecret(input.token);
+  // App Secret: solo se toca si viene en la petición. `undefined` conserva el
+  // guardado (el formulario no lo reenvía); `null` o "" lo borra.
+  const appSecretFields =
+    input.appSecret === undefined
+      ? {}
+      : input.appSecret
+        ? (() => {
+            const e = encryptSecret(input.appSecret);
+            return {
+              appSecretCipher: e.cipher,
+              appSecretIv: e.iv,
+              appSecretTag: e.tag,
+            };
+          })()
+        : { appSecretCipher: null, appSecretIv: null, appSecretTag: null };
+
   await db
     .insert(schema.metaCredentials)
     .values({
@@ -95,6 +142,7 @@ export async function saveCredentials(input: {
       tokenIv: enc.iv,
       tokenTag: enc.tag,
       status: "connected",
+      ...appSecretFields,
     })
     .onConflictDoUpdate({
       target: [schema.metaCredentials.organizationId],
@@ -108,8 +156,20 @@ export async function saveCredentials(input: {
         tokenTag: enc.tag,
         status: "connected",
         updatedAt: new Date(),
+        ...appSecretFields,
       },
     });
+}
+
+/** true si la organización tiene App Secret guardado (para la UI). */
+export async function hasAppSecret(organizationId: string): Promise<boolean> {
+  const db = getDb();
+  const rows = await db
+    .select({ cipher: schema.metaCredentials.appSecretCipher })
+    .from(schema.metaCredentials)
+    .where(scoped(schema.metaCredentials.organizationId, organizationId))
+    .limit(1);
+  return Boolean(rows[0]?.cipher);
 }
 
 /** Marca la conexión como vencida (token inválido detectado en runtime). */

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { mockGuard } from "@/lib/dev-guard";
 import { apiError, parseBody } from "@/lib/api";
 import { getWaMockState } from "@/server/dev/wa-mock-state";
+import { getCredentialsByWabaId } from "@/server/whatsapp/credentials";
 import {
   buildTemplateStatusPayload,
   deliverToWebhook,
@@ -51,7 +52,13 @@ export async function POST(req: Request) {
     ...body.data,
     templateId: tpl?.id,
   });
-  const res = await deliverToWebhook(payload);
+  // 005: el evento de plantilla llega por el webhook de la organización dueña
+  // de esa WABA.
+  const creds = await getCredentialsByWabaId(body.data.wabaId);
+  if (!creds) {
+    return apiError(409, "not_connected", "Ninguna organización tiene esa WABA");
+  }
+  const res = await deliverToWebhook(payload, creds.organizationId);
   return res.ok
     ? Response.json({ delivered: true })
     : apiError(502, "webhook_error", `El webhook respondió ${res.status}`);

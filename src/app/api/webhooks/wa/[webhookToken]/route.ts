@@ -1,5 +1,4 @@
 import { after } from "next/server";
-import { getEnv } from "@/lib/env";
 import {
   isValidSignature,
   isValidWebhookToken,
@@ -7,11 +6,19 @@ import {
 } from "@/server/inbox/webhook";
 import { processEchoesValue, processMessagesValue } from "@/server/inbox/ingest";
 import { processTemplateStatusValue } from "@/server/whatsapp/template-events";
+import { findOrgByWebhookToken } from "@/server/org/webhook-token";
+import { getAppSecretByOrg } from "@/server/whatsapp/credentials";
 
 /**
- * Webhook público de WhatsApp (contrato webhook.md).
- * Capa 1: el segmento [webhookToken] debe coincidir (si no → 404 sin efectos).
- * Capa 2: firma x-hub-signature-256 solo si META_APP_SECRET está configurado.
+ * Webhook público de WhatsApp (contrato 005/contracts/webhook.md).
+ *
+ * Capa 1: el segmento [webhookToken] identifica a UNA organización; token
+ *   desconocido → 404 sin efectos, indistinguible de una ruta inexistente.
+ * Capa 2: firma x-hub-signature-256 con el App Secret de ESA organización, si
+ *   lo tiene configurado.
+ * Capa 3 (en el ingest): el evento debe venir de un phone_number_id que
+ *   pertenezca a esa organización; si no, se descarta.
+ *
  * El POST siempre responde 200 tras validar; el procesamiento va en after().
  */
 export const dynamic = "force-dynamic";
@@ -20,17 +27,19 @@ type Params = { params: Promise<{ webhookToken: string }> };
 
 export async function GET(req: Request, { params }: Params) {
   const { webhookToken } = await params;
-  const env = getEnv();
-  if (!isValidWebhookToken(webhookToken, env.META_WEBHOOK_VERIFY_TOKEN)) {
-    return new Response(null, { status: 404 });
-  }
+  const org = await findOrgByWebhookToken(webhookToken);
+  if (!org) return new Response(null, { status: 404 });
 
   const url = new URL(req.url);
   const mode = url.searchParams.get("hub.mode");
   const token = url.searchParams.get("hub.verify_token");
   const challenge = url.searchParams.get("hub.challenge");
 
-  if (mode === "subscribe" && token === env.META_WEBHOOK_VERIFY_TOKEN) {
+  if (
+    mode === "subscribe" &&
+    token &&
+    isValidWebhookToken(token, org.webhookToken)
+  ) {
     return new Response(challenge ?? "", { status: 200 });
   }
   return new Response(null, { status: 403 });
@@ -38,14 +47,13 @@ export async function GET(req: Request, { params }: Params) {
 
 export async function POST(req: Request, { params }: Params) {
   const { webhookToken } = await params;
-  const env = getEnv();
-  if (!isValidWebhookToken(webhookToken, env.META_WEBHOOK_VERIFY_TOKEN)) {
-    return new Response(null, { status: 404 });
-  }
+  const org = await findOrgByWebhookToken(webhookToken);
+  if (!org) return new Response(null, { status: 404 });
 
   const rawBody = await req.text();
   const signature = req.headers.get("x-hub-signature-256");
-  if (!isValidSignature(rawBody, signature, env.META_APP_SECRET)) {
+  const appSecret = await getAppSecretByOrg(org.organizationId);
+  if (!isValidSignature(rawBody, signature, appSecret ?? undefined)) {
     return new Response(null, { status: 401 });
   }
 
@@ -59,7 +67,7 @@ export async function POST(req: Request, { params }: Params) {
 
   after(async () => {
     try {
-      await processPayload(payload);
+      await processPayload(payload, org.organizationId);
     } catch (err) {
       console.error("[webhook] error procesando payload:", err);
     }
@@ -68,17 +76,24 @@ export async function POST(req: Request, { params }: Params) {
   return Response.json({ received: true });
 }
 
-async function processPayload(payload: WebhookPayload): Promise<void> {
+async function processPayload(
+  payload: WebhookPayload,
+  organizationId: string
+): Promise<void> {
   for (const entry of payload.entry ?? []) {
     for (const change of entry.changes ?? []) {
       if (!change.value) continue;
       if (change.field === "messages") {
-        await processMessagesValue(change.value);
+        await processMessagesValue(change.value, organizationId);
       } else if (change.field === "smb_message_echoes") {
         // 008: mensajes enviados a mano desde la app del teléfono (coexistence)
-        await processEchoesValue(change.value);
+        await processEchoesValue(change.value, organizationId);
       } else if (change.field === "message_template_status_update") {
-        await processTemplateStatusValue(entry.id ?? null, change.value);
+        await processTemplateStatusValue(
+          entry.id ?? null,
+          change.value,
+          organizationId
+        );
       }
       // otros fields: ignorar sin error
     }

@@ -1,26 +1,37 @@
 import { createHmac } from "node:crypto";
-import { getEnv } from "@/lib/env";
 import { nextN } from "@/server/dev/wa-mock-state";
+import { ensureWebhookToken } from "@/server/org/webhook-token";
+import { getAppSecretByOrg } from "@/server/whatsapp/credentials";
 
 /**
  * Construye un payload real de Meta y lo entrega al webhook público por
- * loopback (127.0.0.1: mismo proceso, sin salir a la red). Se firma con el
- * META_APP_SECRET real si está configurado — así el self-test ejercita la
- * capa 2 de verdad.
+ * loopback (127.0.0.1: mismo proceso, sin salir a la red).
+ *
+ * 005 — entrega al webhook de la ORGANIZACIÓN indicada y firma con SU App
+ * Secret. Antes usaba el token del entorno, que con varias empresas habría
+ * hecho aterrizar todo en la misma: el self-test no habría podido probar el
+ * aislamiento, que es justo lo que hay que demostrar.
+ *
+ * `overrideToken` permite al self-test entregar a propósito por el webhook
+ * EQUIVOCADO y comprobar que el evento se descarta.
  */
-export async function deliverToWebhook(payload: unknown): Promise<Response> {
-  const env = getEnv();
+export async function deliverToWebhook(
+  payload: unknown,
+  organizationId: string,
+  overrideToken?: string
+): Promise<Response> {
   const raw = JSON.stringify(payload);
   const port = process.env.PORT ?? "3000";
-  const url = `http://127.0.0.1:${port}/api/webhooks/wa/${env.META_WEBHOOK_VERIFY_TOKEN}`;
+  const token = overrideToken ?? (await ensureWebhookToken(organizationId));
+  const url = `http://127.0.0.1:${port}/api/webhooks/wa/${token}`;
 
   const headers: Record<string, string> = {
     "content-type": "application/json",
   };
-  if (env.META_APP_SECRET) {
-    const sig = createHmac("sha256", env.META_APP_SECRET)
-      .update(raw, "utf8")
-      .digest("hex");
+  // La firma la valida la organización DUEÑA del token, no la del mensaje.
+  const appSecret = await getAppSecretByOrg(organizationId);
+  if (appSecret) {
+    const sig = createHmac("sha256", appSecret).update(raw, "utf8").digest("hex");
     headers["x-hub-signature-256"] = `sha256=${sig}`;
   }
   return fetch(url, { method: "POST", headers, body: raw });

@@ -21,10 +21,15 @@ vi.mock("@/lib/db", async (importOriginal) => {
   return { ...actual, getDb: () => builder };
 });
 
-vi.mock("@/server/bot/auth", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/server/bot/auth")>();
-  return { ...actual, resolveInstanceOrg: async () => "org_1" };
-});
+// 005: la clave de servicio RESUELVE la organización. Se sustituye esa
+// resolución, no la autenticación entera: así el 401 sin clave se sigue
+// ejercitando de verdad.
+vi.mock("@/server/bot/keys", () => ({
+  resolveOrgByBotKey: async (provided: string) =>
+    provided === KEY_DE_PRUEBA ? "org_1" : null,
+}));
+
+const KEY_DE_PRUEBA = "vok_clave-de-servicio-larga-0123456789abcdef";
 
 /** Perfil del agente + knowledge base vía la API de servicio `/api/bot/*`. */
 
@@ -112,10 +117,9 @@ describe("serializeBotProfile", () => {
 });
 
 describe("GET /api/bot/profile (ruta, DB fake)", () => {
-  const KEY = "clave-de-servicio-larga-0123456789abcdef";
+  const KEY = KEY_DE_PRUEBA;
 
   beforeEach(() => {
-    vi.stubEnv("BOT_API_KEY", KEY);
     resetRateLimit();
     dbState.queue = [];
   });

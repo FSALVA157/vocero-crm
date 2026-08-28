@@ -77,10 +77,11 @@ Proveedor LLM por adaptador OpenRouter-compatible: usa el modelo que quieras.
 ### 🔌 Trae tu propio agente
 
 Si prefieres conducir la conversación con tu propio cerebro —un microservicio
-tuyo, en tu mismo servidor— apaga el agente de Vocero y habilita la API de
-servicio con una `BOT_API_KEY`. Tu bot conversa a través del CRM, así que **el
-token de WhatsApp nunca sale de aquí** y todo queda en la bandeja como
-cualquier otra conversación.
+tuyo, en tu mismo servidor— apaga el agente de Vocero y genera la clave de la
+API de servicio en **Configuración → Integraciones** (se muestra una sola vez).
+La clave es de tu organización y solo abre tus datos. Tu bot conversa a través
+del CRM, así que **el token de WhatsApp nunca sale de aquí** y todo queda en la
+bandeja como cualquier otra conversación.
 
 | Endpoint | Para qué |
 |---|---|
@@ -247,16 +248,19 @@ del cliente se conecta con el **override de callback por WABA**:
 
 ## Configuración de la IA
 
-En las variables de la instancia:
+Desde la app, en **Configuración → IA**: pega tu clave de
+[OpenRouter](https://openrouter.ai), elige el modelo del agente y —si quieres—
+uno más barato para el juez del Laboratorio, y pulsa **Probar conexión**.
 
-```bash
-OPENROUTER_API_TOKEN=sk-or-...        # tu key
-OPENROUTER_MODEL=anthropic/claude-sonnet-4.5
-OPENROUTER_JUDGE_MODEL=               # opcional: modelo distinto para el juez del Laboratorio
-OPENROUTER_BASE_URL=https://openrouter.ai/api   # o tu proveedor OpenAI-compatible
-```
+La clave es **de tu organización**: se guarda cifrada, su consumo se factura a
+quien la puso, y una empresa nunca gasta la clave de otra. Si tu agencia te
+provee una, es una key de su cuenta con límite de gasto — el cupo lo administra
+OpenRouter, no el CRM.
 
-Sin token, todo lo demás funciona; Agente y Laboratorio muestran cómo
+Solo sigue siendo de instancia `OPENROUTER_BASE_URL`, por si apuntas a otro
+proveedor compatible con la API de OpenRouter.
+
+Sin clave, todo lo demás funciona; Agente y Laboratorio muestran cómo
 activarlos. Después configura el comportamiento y el conocimiento en la
 pestaña **Agente** y corre el **Laboratorio** antes de encender el agente con
 clientes reales.
@@ -350,6 +354,32 @@ SemVer sobre lo que le importa a quien opera una instancia:
 
 La versión vive en `package.json` y se sube en el PR que publica el cambio.
 
+### 3.0.0 — Multitenencia real (secretos por organización)
+
+Una instancia puede alojar **varios negocios completamente aislados**. Lo que
+antes vivía en el `.env` y valía para toda la instancia pasa a ser de cada
+organización:
+
+| Antes (variable de instancia) | Ahora |
+|---|---|
+| `META_WEBHOOK_VERIFY_TOKEN` | URL de webhook propia, en Configuración → WhatsApp |
+| `META_APP_SECRET` | App Secret propio, cifrado |
+| `OPENROUTER_API_TOKEN` / `_MODEL` / `_JUDGE_MODEL` | Configuración → IA (cifrada; cada empresa paga la suya) |
+| `BOT_API_KEY` | Configuración → Integraciones (se muestra una vez; se guarda su hash) |
+| `ALLOW_SIGNUP` | `SIGNUP_INVITE_CODE` |
+
+**Actualizar es redesplegar: no hay que pegar nada a mano.** Al arrancar, si la
+instancia tiene una sola organización, adopta esos valores del entorno una vez
+—el token del webhook tal cual, así la URL que Meta ya tiene sigue siendo
+válida—. Es idempotente y no pisa lo que hayas configurado desde la app.
+Después puedes retirar esas variables del `.env`.
+
+Si conectas un bot externo, tu `BOT_API_KEY` se adopta y sigue funcionando; se
+recomienda regenerarla desde Configuración → Integraciones.
+
+Es versión mayor porque cambian dos contratos publicados (el webhook y la
+autenticación de `/api/bot/*`) y el significado de esas variables.
+
 ### 2.0.0 — Roles y permisos
 
 Vocero pasa de "todo el que entra puede todo" a **tres roles**: Propietario,
@@ -421,8 +451,10 @@ POSTGRES_PASSWORD=<openssl rand -hex 24>
 DATABASE_URL=postgresql://postgres:<esa misma contraseña>@localhost:5432/vocero
 BETTER_AUTH_SECRET=<openssl rand -base64 32>
 ENCRYPTION_KEY=<openssl rand -base64 32>        # exactamente 32 bytes en base64
-META_WEBHOOK_VERIFY_TOKEN=<openssl rand -hex 32>
 ```
+
+> Desde la 3.0.0 el token del webhook, la clave de IA y la clave del bot NO son
+> variables: pertenecen a cada organización y se ven o se generan en la app.
 
 Y el **modo de pruebas interno**, que sustituye WhatsApp y el LLM por mocks:
 
@@ -430,10 +462,11 @@ Y el **modo de pruebas interno**, que sustituye WhatsApp y el LLM por mocks:
 WA_MOCK_ENABLED=true
 META_GRAPH_BASE_URL=http://localhost:3000/api/dev/wa-mock/graph
 OPENROUTER_BASE_URL=http://localhost:3000/api/dev/ai-mock
-OPENROUTER_API_TOKEN=mock-token
-OPENROUTER_MODEL=mock/model
-BOT_API_KEY=<cualquier cadena de 16+ caracteres>   # lo exigen los guiones E2E
 ```
+
+Con los mocks, la clave de IA que pongas en Configuración → IA puede ser
+cualquier cosa (`mock-token`) y el modelo `mock/model`. Los guiones E2E generan
+por su cuenta la clave de `/api/bot/*`.
 
 > **Nunca actives los mocks en producción.** Secretos locales propios: no
 > reutilices los de tu instancia desplegada.
@@ -506,8 +539,10 @@ pnpm vitest run -t "nombre del caso"       # un caso
 pnpm test:e2e                              # arnés E2E contra la app viva
 ```
 
-`pnpm test:e2e` requiere la app corriendo, la BD migrada, los mocks encendidos
-y `BOT_API_KEY` en el `.env`. Los guiones por historia están en
+`pnpm test:e2e` requiere la app corriendo, la BD migrada y los mocks
+encendidos; la clave de `/api/bot/*` se la genera él mismo. Si tu instancia ya
+tiene una organización, apúntalo a su propietario con `E2E_OWNER_EMAIL` y
+`E2E_OWNER_PASSWORD`. Los guiones por historia están en
 [`tests/e2e/`](tests/e2e/); parte ya automatizados en `scripts/e2e-*.mjs`.
 
 Antes de abrir un PR:

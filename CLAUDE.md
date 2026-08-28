@@ -85,6 +85,10 @@ No corre E2E: eso es tuyo antes de declarar "Hecho".
 | Cómo se identifica a un contacto | `src/server/inbox/identity.ts` (teléfono normalizado o `bsuid:<id>`) |
 | Conectar TU propio bot en vez del agente | `src/app/api/bot/*` + `src/server/bot/auth.ts` (X-API-Key) |
 | Quién puede hacer qué (roles) | `src/lib/auth/permissions.ts` (matriz) → cada ruta la declara con `withAuth(h, { permission })` |
+| La clave/modelo de IA de una organización | `src/server/ai/config.ts` (cifrada) → `chatJson(schema, msgs, { organizationId })` |
+| La clave del bot externo | `src/server/bot/keys.ts` (hash) → `requireBotAuth(req)` devuelve la organización |
+| El token del webhook de una organización | `src/server/org/webhook-token.ts` |
+| Adoptar secretos del `.env` al actualizar | `src/server/startup/adopt-env-secrets.ts` (corre en `instrumentation.ts`) |
 | UI | `src/components/` + `src/app/(app)/` |
 
 Los mocks del entorno de pruebas viven en `src/app/api/dev/` (wa-mock +
@@ -116,7 +120,11 @@ Ver [.specify/memory/constitution.md](.specify/memory/constitution.md).
 - **Multi-tenancy (III)**: `organization_id` NOT NULL en toda tabla de dominio;
   toda query pasa por `scoped()` de `src/lib/db/tenant.ts`. El permiso de rol
   NO lo sustituye: dice qué puede hacer alguien, no sobre qué filas. Una ruta
-  nueva necesita los dos.
+  nueva necesita los dos. Y desde 005: **ningún secreto con efecto sobre los
+  datos de un tenant vive en el `.env`** — credenciales de canal, clave de IA,
+  secreto de webhook y clave de `/api/bot/*` son de la organización. Toda
+  entrada externa RESUELVE su organización desde una credencial; nunca elige
+  "la primera" ni "la única".
 - **Idempotencia (IV)**: webhooks dedup por `wa_message_id` UNIQUE; estados
   monotónicos; seeds y migraciones re-ejecutables.
 - **Sandbox del Laboratorio**: las conversaciones `is_test` JAMÁS tocan la API
@@ -129,11 +137,14 @@ Ver `.env.example` (cada una con guía inline). Las claves: `APP_BASE_URL`,
 `META_WEBHOOK_VERIFY_TOKEN` (segmento secreto del webhook), `META_APP_SECRET`
 (opcional, firma), y para IA:
 
-```bash
-OPENROUTER_API_TOKEN=sk-or-...
-OPENROUTER_MODEL=anthropic/claude-sonnet-4.5
-OPENROUTER_JUDGE_MODEL=anthropic/claude-haiku-4.5   # opcional: juez más barato
-```
+La IA ya NO se configura por entorno: cada organización pega su clave en
+Configuración → IA (`org_ai_config`, cifrada). De instancia solo queda
+`OPENROUTER_BASE_URL`, para apuntar al ai-mock o a otro proveedor compatible.
+
+Deprecadas y adoptadas UNA vez al arrancar si la instancia tiene una sola
+organización: `META_WEBHOOK_VERIFY_TOKEN`, `META_APP_SECRET`,
+`OPENROUTER_API_TOKEN`/`_MODEL`/`_JUDGE_MODEL`, `BOT_API_KEY`. `ALLOW_SIGNUP`
+quedó sin efecto: la reemplaza `SIGNUP_INVITE_CODE`.
 
 Para el self-test local existe además el modo de pruebas interno (mocks) —
 ver `specs/001-vocero-core/quickstart.md`. Nunca actives mocks en producción.

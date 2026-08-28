@@ -241,11 +241,20 @@ export async function syncTemplates(organizationId: string): Promise<number> {
 /** Evento webhook `message_template_status_update` (modo directo, FR-050). */
 export async function applyTemplateStatusEvent(
   wabaId: string | null,
-  value: WebhookValue
+  value: WebhookValue,
+  expectedOrganizationId?: string
 ): Promise<void> {
   if (!wabaId) return;
   const creds = await getCredentialsByWabaId(wabaId);
   if (!creds) return;
+  if (expectedOrganizationId && creds.organizationId !== expectedOrganizationId) {
+    // 005: WABA de otra organización llegando por este webhook → descartar.
+    console.warn(
+      `[webhook] estado de plantilla de la WABA ${wabaId}, ajena a la organización ` +
+        `${expectedOrganizationId}: descartado`
+    );
+    return;
+  }
 
   const status = mapMetaStatus(value.event);
   const name = value.message_template_name;

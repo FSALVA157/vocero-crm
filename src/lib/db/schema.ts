@@ -73,19 +73,36 @@ export const organization = pgTable("organization", {
   logo: text("logo"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   metadata: text("metadata"),
+  /**
+   * 005 — secretos POR ORGANIZACIÓN. Nullable porque la migración es aditiva:
+   * los rellena `adoptLegacyEnvSecrets()` al arrancar (instancia que actualiza)
+   * o el alta de la organización (instancia nueva).
+   */
+  /** Segmento secreto de /api/webhooks/wa/[token]. 32 bytes hex. */
+  webhookToken: text("webhook_token"),
+  /** SHA-256 hex de la clave de /api/bot/*. NULL = sin cerebro externo. */
+  botKeyHash: text("bot_key_hash"),
+  botKeyLast4: text("bot_key_last4"),
+  botKeyCreatedAt: timestamp("bot_key_created_at"),
 });
 
-export const member = pgTable("member", {
-  id: text("id").primaryKey(),
-  organizationId: text("organization_id")
-    .notNull()
-    .references(() => organization.id, { onDelete: "cascade" }),
-  userId: text("user_id")
-    .notNull()
-    .references(() => user.id, { onDelete: "cascade" }),
-  role: text("role").notNull().default("member"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+export const member = pgTable(
+  "member",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    role: text("role").notNull().default("member"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  // 005: una persona puede estar en varias organizaciones, pero una sola vez
+  // en cada una — sin esto, agregar un correo ya existente duplicaría la fila.
+  (t) => [uniqueIndex("member_org_user_uq").on(t.organizationId, t.userId)]
+);
 
 export const invitation = pgTable("invitation", {
   id: text("id").primaryKey(),
@@ -446,6 +463,13 @@ export const metaCredentials = pgTable(
     tokenCipher: text("token_cipher").notNull(),
     tokenIv: text("token_iv").notNull(),
     tokenTag: text("token_tag").notNull(),
+    /**
+     * 005 — App Secret de la app de Meta de ESTA organización, para validar
+     * x-hub-signature-256. Opcional: en modo agencia suele no configurarse.
+     */
+    appSecretCipher: text("app_secret_cipher"),
+    appSecretIv: text("app_secret_iv"),
+    appSecretTag: text("app_secret_tag"),
     status: text("status", { enum: ["connected", "reconnect_required"] })
       .notNull()
       .default("connected"),
@@ -457,6 +481,31 @@ export const metaCredentials = pgTable(
     // El webhook enruta por phone_number_id: debe ser único en la instancia.
     uniqueIndex("meta_credentials_phone_uq").on(t.phoneNumberId),
   ]
+);
+
+/**
+ * 005 — Proveedor LLM POR ORGANIZACIÓN. Cada empresa paga y configura el suyo;
+ * el adaptador jamás usa la clave de otra ni la del entorno como respaldo.
+ */
+export const orgAiConfig = pgTable(
+  "org_ai_config",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    tokenCipher: text("token_cipher").notNull(),
+    tokenIv: text("token_iv").notNull(),
+    tokenTag: text("token_tag").notNull(),
+    /** Últimos 4 para mostrar; la clave nunca vuelve al cliente. */
+    tokenLast4: text("token_last4").notNull(),
+    model: text("model").notNull(),
+    /** Si falta, el juez del Laboratorio usa `model`. */
+    judgeModel: text("judge_model"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("org_ai_config_org_uq").on(t.organizationId)]
 );
 
 export const agentProfile = pgTable(
