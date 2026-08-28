@@ -46,6 +46,20 @@ const envSchema = z.object({
    */
   SIGNUP_INVITE_CODE: z.string().optional(),
   AGENT_COALESCE_MS: z.coerce.number().int().min(0).default(6000),
+  /**
+   * 006 — rol del proceso. `all` (default): sirve la app Y consume la cola del
+   * agente in-process. `web`: solo sirve la app (hay un worker aparte).
+   * `worker`: solo consume la cola (entrada scripts/worker.ts, sin app).
+   */
+  ROLE: z.enum(["all", "web", "worker"]).default("all"),
+  /** 006 — cadencia del consumidor de la cola (ms entre sondeos). */
+  AGENT_JOB_POLL_MS: z.coerce.number().int().min(100).default(1000),
+  /** 006 — turnos del agente en paralelo por proceso. */
+  AGENT_JOB_CONCURRENCY: z.coerce.number().int().min(1).max(32).default(4),
+  /** 006 — sin heartbeat durante este tiempo, el job se considera huérfano. */
+  AGENT_JOB_LOCK_TTL_MS: z.coerce.number().int().min(5000).default(60_000),
+  /** 006 — reintentos ante excepción no controlada en un turno. */
+  AGENT_JOB_MAX_ATTEMPTS: z.coerce.number().int().min(1).default(3),
   WA_MOCK_ENABLED: z.string().optional(),
   /**
    * DEPRECADA (005): la clave de `/api/bot/*` es por organización

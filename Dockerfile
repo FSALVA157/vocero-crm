@@ -29,6 +29,11 @@ RUN pnpm exec esbuild scripts/migrate.mjs --bundle --platform=node \
 RUN pnpm exec esbuild scripts/seed/demo.ts --bundle --platform=node \
     --format=esm --outfile=seed-demo.bundle.mjs --alias:@=./src \
     --banner:js="import { createRequire } from 'module'; const require = createRequire(import.meta.url);"
+# 006: entrada del rol worker (misma imagen; ver ROLE en .env.example)
+RUN pnpm exec esbuild scripts/worker.ts --bundle --platform=node \
+    --format=esm --outfile=worker.bundle.mjs --alias:@=./src \
+    --define:process.env.NEXT_PUBLIC_APP_VERSION=\"$(node -p "require('./package.json').version")\" \
+    --banner:js="import { createRequire } from 'module'; const require = createRequire(import.meta.url);"
 
 FROM node:22-alpine AS runner
 WORKDIR /app
@@ -45,6 +50,7 @@ COPY --from=builder --chown=vocero:vocero /app/.next/static ./.next/static
 COPY --from=builder --chown=vocero:vocero /app/public ./public
 COPY --from=builder --chown=vocero:vocero /app/migrate.bundle.mjs ./migrate.mjs
 COPY --from=builder --chown=vocero:vocero /app/seed-demo.bundle.mjs ./seed-demo.mjs
+COPY --from=builder --chown=vocero:vocero /app/worker.bundle.mjs ./worker.mjs
 COPY --from=builder --chown=vocero:vocero /app/drizzle ./drizzle
 
 USER vocero
@@ -56,5 +62,7 @@ ENV HOSTNAME=0.0.0.0
 HEALTHCHECK --interval=15s --timeout=5s --start-period=40s --retries=5 \
   CMD wget -q -O /dev/null http://127.0.0.1:3000/api/health || exit 1
 
-# Migrar al BOOT del contenedor nuevo y arrancar el server standalone
-CMD ["sh", "-c", "node migrate.mjs && node server.js"]
+# Migrar al BOOT del contenedor nuevo y arrancar el server standalone.
+# 006: con ROLE=worker arranca solo el consumidor de la cola (no migra: lo
+# hace la app web; el worker espera a que la tabla exista).
+CMD ["sh", "-c", "if [ \"$ROLE\" = worker ]; then node worker.mjs; else node migrate.mjs && node server.js; fi"]

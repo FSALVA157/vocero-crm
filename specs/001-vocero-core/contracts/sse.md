@@ -23,5 +23,10 @@ Connection: keep-alive
   `last_message_at`) al reconectar; el servidor NO garantiza replay — el cliente hace
   refetch de conversaciones/mensajes con `since=<timestamp>` al evento `open` tras una
   reconexión. EventSource reconecta solo (retry por defecto).
-- **Bus interno**: EventEmitter in-process por organización (`server/events`); publicar
-  tras commit de BD.
+- **Bus interno** (006): `publish()` emite en el EventEmitter del proceso Y hace
+  `NOTIFY vocero_events` con `{origin, org, event}`; cada proceso hace `LISTEN`
+  (`startEventBridge`) y reemite lo que publican los demás, ignorando su propio
+  `origin`. Payload > 7000 bytes → viaja por referencia
+  (`{ref:{kind:'message', conversationId, messageId}}`) y el receptor rehidrata
+  desde la BD. Publicar tras commit de BD. Sin garantía de replay: el catch-up
+  sigue siendo del cliente.

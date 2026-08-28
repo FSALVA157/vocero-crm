@@ -25,6 +25,25 @@ services:
         condition: service_healthy
     # el HEALTHCHECK vive en el Dockerfile (/api/health)
 
+  # 006 (opcional): trabajo del agente en un contenedor aparte con la MISMA
+  # imagen. Para activarlo, descomenta este servicio y añade ROLE=web al `app`.
+  # Sin él, `app` consume la cola in-process (ROLE=all, el default).
+  # worker:
+  #   build: .
+  #   restart: unless-stopped
+  #   environment:
+  #     ROLE: worker
+  #     APP_BASE_URL: ${APP_BASE_URL}
+  #     DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/vocero
+  #     BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+  #     ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+  #     META_GRAPH_API_VERSION: ${META_GRAPH_API_VERSION:-v25.0}
+  #     OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL:-https://openrouter.ai/api}
+  #     AGENT_COALESCE_MS: ${AGENT_COALESCE_MS:-6000}
+  #   depends_on:
+  #     app:
+  #       condition: service_healthy
+
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
