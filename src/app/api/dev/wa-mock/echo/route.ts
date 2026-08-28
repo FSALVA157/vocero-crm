@@ -16,6 +16,8 @@ export const dynamic = "force-dynamic";
  */
 const schema = z.object({
   phoneNumberId: z.string().min(1),
+  /** 005: entregar a propósito por el webhook de OTRA organización. */
+  webhookToken: z.string().min(16).optional(),
   /** wa_id del lead destinatario. */
   to: z.string().min(5),
   type: z.string().optional(),
@@ -42,7 +44,11 @@ export async function POST(req: Request) {
     ...body.data,
     wabaId: creds?.wabaId ?? "WABA-MOCK",
   });
-  const res = await deliverToWebhook(payload);
+  const res = await deliverToWebhook(
+    payload,
+    creds?.organizationId ?? "",
+    body.data.webhookToken
+  );
   if (!res.ok) {
     return apiError(502, "webhook_error", `El webhook respondió ${res.status}`);
   }

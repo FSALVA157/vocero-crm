@@ -1,5 +1,12 @@
 # Contrato: Webhook de WhatsApp Cloud API
 
+> ⚠️ **Sustituido desde la 3.0.0** por
+> [`specs/005-multi-organizacion/contracts/webhook.md`](../../005-multi-organizacion/contracts/webhook.md).
+> El segmento de la URL ya no es `META_WEBHOOK_VERIFY_TOKEN` (de instancia)
+> sino el `webhook_token` de UNA organización, y se añade una tercera capa que
+> descarta los eventos cuyo `phone_number_id` pertenezca a otra. Este documento
+> se conserva como registro de cómo funcionaba en la v1/v2.
+
 Ruta: `/api/webhooks/wa/[webhookToken]` — `[webhookToken]` DEBE igualar
 `META_WEBHOOK_VERIFY_TOKEN` (comparación timing-safe). Segmento incorrecto → **404**
 sin efectos (GET y POST). Ruta `force-dynamic`.

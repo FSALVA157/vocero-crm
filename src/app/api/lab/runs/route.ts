@@ -2,7 +2,7 @@ import { desc } from "drizzle-orm";
 import { apiError, withAuth } from "@/lib/api";
 import { getDb, schema } from "@/lib/db";
 import { scoped } from "@/lib/db/tenant";
-import { isAiConfigured } from "@/lib/env";
+import { isAiConfiguredFor } from "@/server/ai/config";
 import { RunConflictError, startRun } from "@/server/lab/runner";
 
 export const dynamic = "force-dynamic";
@@ -34,11 +34,11 @@ export const GET = withAuth(async (session) => {
           : null,
     };
   });
-  return Response.json({ runs: withDelta, aiConfigured: isAiConfigured() });
+  return Response.json({ runs: withDelta, aiConfigured: await isAiConfiguredFor(session.organizationId) });
 }, { permission: "agent.read" });
 
 export const POST = withAuth(async (session) => {
-  if (!isAiConfigured()) {
+  if (!(await isAiConfiguredFor(session.organizationId))) {
     return apiError(
       409,
       "ai_not_configured",

@@ -29,9 +29,11 @@ export const PERMISSIONS = [
   "templates.write",
   "settings.read",
   "settings.branding.write",
+  "settings.ai.write",
   "team.read",
-  // Llaves de la instancia — solo owner
+  // Llaves de la organización — solo owner
   "settings.whatsapp.write",
+  "integrations.write",
   "team.write",
   "seed.demo",
 ] as const;
@@ -60,6 +62,9 @@ const ADMIN: Permission[] = [
   "templates.write",
   "settings.read",
   "settings.branding.write",
+  // El proveedor de IA lo paga la organización y el administrador lo opera;
+  // la clave del bot, en cambio, abre la puerta a TODOS los datos por API.
+  "settings.ai.write",
   "team.read",
 ];
 

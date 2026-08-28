@@ -27,3 +27,21 @@ export async function cleanupOrphanRuns(): Promise<void> {
     console.error("[boot] limpieza de corridas huérfanas falló:", err);
   }
 }
+
+/**
+ * 005 — adopción de los secretos del entorno por la organización única.
+ * Envuelta aquí para que un fallo NO impida arrancar el servidor: una app sin
+ * IA es un problema; una app que no levanta, uno peor.
+ */
+export async function adoptEnvSecrets(): Promise<void> {
+  try {
+    const { warnDeprecatedEnv } = await import("@/lib/env");
+    warnDeprecatedEnv();
+    const { adoptLegacyEnvSecrets } = await import(
+      "@/server/startup/adopt-env-secrets"
+    );
+    await adoptLegacyEnvSecrets();
+  } catch (err) {
+    console.error("[boot] adopción de secretos del entorno falló:", err);
+  }
+}

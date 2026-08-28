@@ -13,7 +13,11 @@
  */
 
 const BASE = process.env.APP_BASE_URL ?? "http://localhost:3000";
-const BOT_KEY = process.env.BOT_API_KEY;
+/**
+ * 005: la clave de /api/bot/* es de la ORGANIZACIÓN y se genera desde la app.
+ * El arnés la crea tras iniciar sesión, en vez de leerla del entorno.
+ */
+let BOT_KEY = null;
 
 let cookie = "";
 let failures = 0;
@@ -62,13 +66,6 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const PN = "PN-E2E-1";
 
 async function main() {
-  if (!BOT_KEY || BOT_KEY.length < 16) {
-    console.error(
-      "BOT_API_KEY ausente o corta (<16): los checks de /api/bot/* no pueden correr."
-    );
-    process.exit(1);
-  }
-
   console.log("== Setup: registro/login + conexión WhatsApp ==");
   // En una instancia ya en uso el registro está cerrado: se apunta al
   // propietario existente con E2E_OWNER_EMAIL/E2E_OWNER_PASSWORD.
@@ -86,6 +83,21 @@ async function main() {
     });
   }
   ok("registro o login del operador", su.res.ok, JSON.stringify(su.json));
+
+  // 005: clave de servicio de ESTA organización, generada por API.
+  const botKeyRes = await api("/api/settings/integrations/bot-key", {
+    method: "POST",
+  });
+  ok(
+    "clave de /api/bot/* generada para la organización",
+    botKeyRes.res.status === 201,
+    JSON.stringify(botKeyRes.json)
+  );
+  BOT_KEY = botKeyRes.json?.key ?? null;
+  if (!BOT_KEY) {
+    console.error("Sin clave de bot: los checks de /api/bot/* no pueden correr.");
+    process.exit(1);
+  }
 
   const conn = await api("/api/settings/whatsapp", {
     method: "PUT",

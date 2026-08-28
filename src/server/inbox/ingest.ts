@@ -192,11 +192,23 @@ export async function getOrCreateConversation(
  * Procesa el `value` de un cambio `messages` del webhook: mensajes entrantes
  * (idempotentes por wa_message_id) y actualizaciones de estado.
  */
-export async function processMessagesValue(value: WebhookValue): Promise<void> {
+export async function processMessagesValue(
+  value: WebhookValue,
+  expectedOrganizationId: string
+): Promise<void> {
   const phoneNumberId = value.metadata?.phone_number_id;
   if (!phoneNumberId) return;
 
   const credentials = await getCredentialsByPhoneNumberId(phoneNumberId);
+  if (credentials && credentials.organizationId !== expectedOrganizationId) {
+    // Capa 3 (005): el evento llegó por el webhook de una organización pero el
+    // número es de otra. Se descarta: el token de A no puede escribir en B.
+    console.warn(
+      `[webhook] evento con phone_number_id ${phoneNumberId} ajeno a la organización ` +
+        `${expectedOrganizationId}: descartado`
+    );
+    return;
+  }
   if (!credentials) {
     // Caso típico: webhook/override configurado ANTES de guardar la conexión
     // en el wizard — el evento llega pero no hay a qué organización enrutarlo.
@@ -242,11 +254,21 @@ export async function processMessagesValue(value: WebhookValue): Promise<void> {
  * como salientes `origin='manual'` y pausan la IA (decisión del dueño
  * 2026-08-04). JAMÁS tocan la ventana de 24 h ni disparan al agente.
  */
-export async function processEchoesValue(value: WebhookValue): Promise<void> {
+export async function processEchoesValue(
+  value: WebhookValue,
+  expectedOrganizationId: string
+): Promise<void> {
   const phoneNumberId = value.metadata?.phone_number_id;
   if (!phoneNumberId) return;
 
   const credentials = await getCredentialsByPhoneNumberId(phoneNumberId);
+  if (credentials && credentials.organizationId !== expectedOrganizationId) {
+    console.warn(
+      `[webhook] echo con phone_number_id ${phoneNumberId} ajeno a la organización ` +
+        `${expectedOrganizationId}: descartado`
+    );
+    return;
+  }
   if (!credentials) {
     console.warn(
       `[webhook] echo para phone_number_id desconocido (${phoneNumberId}): descartado`

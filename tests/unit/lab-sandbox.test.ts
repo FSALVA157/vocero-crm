@@ -12,6 +12,11 @@ vi.mock("@/lib/meta/client", async (importOriginal) => {
   return { ...original, graphRequest };
 });
 
+// 005: el turno del agente pregunta si SU organización tiene IA configurada.
+vi.mock("@/server/ai/config", () => ({
+  isAiConfiguredFor: async () => true,
+}));
+
 vi.mock("@/lib/ai", () => ({
   chatJson: vi.fn().mockResolvedValue({
     ok: true,

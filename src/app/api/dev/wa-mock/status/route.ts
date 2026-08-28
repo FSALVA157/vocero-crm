@@ -46,7 +46,7 @@ export async function POST(req: Request) {
     errorCode: body.data.errorCode,
     errorMessage: body.data.errorMessage,
   });
-  const res = await deliverToWebhook(payload);
+  const res = await deliverToWebhook(payload, creds.organizationId);
   return res.ok
     ? Response.json({ delivered: true })
     : apiError(502, "webhook_error", `El webhook respondió ${res.status}`);

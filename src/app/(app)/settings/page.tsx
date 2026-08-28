@@ -11,6 +11,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function SettingsPage() {
   if (await hasPermission("settings.read")) redirect("/settings/whatsapp");
+  if (await hasPermission("settings.ai.write")) redirect("/settings/ai");
   if (await hasPermission("templates.write")) redirect("/settings/templates");
   return <Forbidden destino="a la configuración" />;
 }

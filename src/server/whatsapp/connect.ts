@@ -61,23 +61,41 @@ export async function testConnection(
 }
 
 /**
- * Suscribe la app a la WABA tras guardar (necesario para recibir webhooks en
- * modo directo). Best-effort: en modo agencia el override lo configura el
- * backend de la agencia y esta llamada puede no aplicar.
+ * Suscribe la app a la WABA tras guardar.
+ *
+ * 005 — con `override` manda además el callback de ESTA organización
+ * (`override_callback_uri` + `verify_token`, DV-VC-04): así una sola app de
+ * Meta puede servir a varias empresas y cada una recibe sus eventos en su
+ * propia URL. En modo directo el override es inofensivo y ahorra que el
+ * cliente lo configure a mano.
+ *
+ * Best-effort: si Meta rechaza (token sin permisos de management, URL
+ * inalcanzable durante su handshake), la conexión se guarda igual y el motivo
+ * vuelve para mostrarlo en el asistente.
  */
 export async function subscribeAppToWaba(
   wabaId: string,
-  token: string
-): Promise<void> {
+  token: string,
+  override?: { callbackUrl: string; verifyToken: string }
+): Promise<{ ok: boolean; error?: string }> {
   try {
     await graphRequest(`${wabaId}/subscribed_apps`, {
       method: "POST",
       token,
+      body: override
+        ? {
+            override_callback_uri: override.callbackUrl,
+            verify_token: override.verifyToken,
+          }
+        : undefined,
     });
+    return { ok: true };
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
     console.warn(
-      "[connect] subscribed_apps falló (esperado en modo agencia):",
-      err instanceof Error ? err.message : err
+      "[connect] subscribed_apps falló (esperado en modo agencia sin permisos):",
+      message
     );
+    return { ok: false, error: message };
   }
 }

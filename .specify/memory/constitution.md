@@ -1,6 +1,43 @@
 <!--
 SYNC IMPACT REPORT
 ==================
+Versión: 1.3.0 → 1.4.0
+
+Cambios:
+  - Preámbulo, Principio III "Multi-Tenancy Real" y Principio VIII "Foco Vertical"
+    → ENMENDADOS: donde decían "una instancia = un negocio" / "UN negocio", ahora
+    dicen que una instancia sirve a uno o VARIOS negocios, cada uno aislado por
+    completo. Es la frase la que cambia, no la exigencia: el aislamiento que el
+    Principio III pedía "para no cerrar la puerta a evoluciones" pasa a ejercerse.
+  - Principio III → REFORZADO con una regla explícita: ningún secreto ni
+    configuración con efecto sobre los datos de un tenant puede vivir en el
+    entorno de la instancia. Se añade porque la feature 005 encontró tres que sí
+    vivían ahí (token del webhook, clave del proveedor LLM y clave de /api/bot/*,
+    esta última resolviendo la organización como "la primera fila de organization
+    sin ORDER BY", cacheada en memoria).
+  - Principios I, II, IV, V, VI, VII, IX: íntegros (sin cambio).
+  - Governance: sin cambio.
+
+Bump: MINOR (1.3.0 → 1.4.0) — expansión material del alcance del producto y de
+un principio. No elimina ni redefine nada de forma incompatible: una instancia
+de un solo negocio sigue siendo un caso válido y sigue cumpliendo todo.
+
+Motivación:
+  El modelo de datos fue multi-tenant real desde el día uno (organization_id NOT
+  NULL en toda tabla de dominio, scoped() obligatorio). Lo que no lo era es la
+  configuración: bastó crear una segunda organización a mano para descubrir que
+  tres secretos de instancia habrían dado a una empresa acceso a los datos de
+  otra. Mantener el texto "una instancia = un negocio" mientras el producto
+  admite varias sería peor que enmendarlo: dejaría la regla de aislamiento
+  apoyada en una premisa que ya no se cumple.
+
+Plantillas dependientes: sin cambios necesarios (los carriles y el Constitution
+Check no se tocan).
+-->
+
+<!--
+SYNC IMPACT REPORT
+==================
 Versión: 1.2.0 → 1.3.0
 
 Cambios:
@@ -52,7 +89,8 @@ TODOs diferidos:
 
 Vocero CRM es un CRM de WhatsApp con agente de IA, open source (MIT), self-hosted y
 gratuito, diseñado para que las agencias de IA lo desplieguen en el VPS de sus
-clientes: una instancia = un negocio. Esta constitución define las reglas no
+clientes. Una instancia sirve a uno o varios negocios, cada uno completamente
+aislado de los demás. Esta constitución define las reglas no
 negociables del producto. Aplica a todas las fases del flujo de trabajo (specify,
 plan, tasks, implement). Cualquier conflicto entre una decisión de implementación y
 esta constitución SE RESUELVE A FAVOR de esta constitución.
@@ -103,17 +141,28 @@ fuga de soberanía que rompe la promesa "gratis y tuyo".
 ### III. Multi-Tenancy Real
 
 El sistema sirve a organizaciones independientes desde una sola instancia lógica.
-En Vocero cada instancia sirve a UN negocio, pero el modelo de datos es
-multi-tenant real (organización del plugin de auth) para mantener el aislamiento
-exigible y no cerrar la puerta a evoluciones.
+Una instancia puede alojar uno o varios negocios, y cada uno está completamente
+aislado del resto: sus datos, sus secretos y su configuración.
 
 - Cada organización (tenant) gestiona sus propios usuarios, roles y permisos.
 - El identificador de tenant (`organization_id`) es un parámetro de primer nivel en
   el modelo de datos y en la capa de acceso a datos, no un campo opcional añadido a
   posteriori. Toda tabla de dominio lo lleva NOT NULL e indexado org-first.
+- **Ningún secreto ni configuración con efecto sobre los datos de un tenant vive
+  en el entorno de la instancia.** Credenciales de canal, claves de proveedores
+  de IA, secretos de webhook y claves de API de servicio pertenecen a la
+  organización y se guardan cifradas o hasheadas junto a ella. El entorno solo
+  lleva lo que es genuinamente de la instancia: conexión a la base, claves de
+  cifrado y firma, y URLs base.
+- Toda entrada externa (webhook, API de servicio, tarea en segundo plano)
+  RESUELVE su organización a partir de una credencial que la identifica, nunca
+  eligiéndola por conveniencia —"la primera", "la única"—: una consulta sin orden
+  determinista es una fuga esperando a que exista el segundo tenant.
 
 **Rationale**: Multi-tenancy diseñado desde el inicio evita reescrituras costosas y
-hace cumplible el aislamiento del Principio I.
+hace cumplible el aislamiento del Principio I. Las dos reglas añadidas salen de un
+caso real: el modelo de datos aislaba correctamente, y aun así tres secretos de
+instancia habrían cruzado la frontera en cuanto existiera una segunda organización.
 
 ### IV. Idempotencia en Integraciones Externas
 
@@ -201,7 +250,7 @@ de deuda oculta; hacerlas visibles permite corregirlas a tiempo.
 Es un CRM de conversaciones y leads de WhatsApp que las agencias despliegan para
 negocios. No es plataforma de marketing masivo, ni constructor visual de flujos, ni
 herramienta de scraping. Lo que no ayude a *atender, organizar y convertir
-conversaciones de WhatsApp de UN negocio* se rechaza.
+conversaciones de WhatsApp de un negocio* se rechaza.
 
 - El modelo de datos y los flujos MUST reflejar ese dominio: contactos que escriben
   por WhatsApp, conversaciones con ventana de 24h, leads en un pipeline, un agente
@@ -313,4 +362,4 @@ práctica, convención o preferencia; ante un conflicto, gana la constitución.
 - **Propagación**: al enmendar la constitución se revisan y, si procede, se actualizan
   las plantillas dependientes (plan, spec, tasks).
 
-**Version**: 1.3.0 | **Ratified**: 2026-07-09 | **Last Amended**: 2026-08-17
+**Version**: 1.4.0 | **Ratified**: 2026-07-09 | **Last Amended**: 2026-08-28
