@@ -64,8 +64,15 @@ function bot(path, opts = {}) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const PN = "PN-E2E-1";
+// Los ids de los echoes de coexistence deben ser únicos POR CORRIDA: el ingest
+// descarta un wa_message_id repetido sin pausar la IA (idempotencia), así que
+// con ids fijos la segunda corrida contra la misma base veía el echo como
+// duplicado y el check de la pausa fallaba sin que nada estuviera roto.
+const RUN = Date.now().toString(36);
 
 async function main() {
+  // Entorno de pruebas: vacía el limitador de login (en producción: 404, se ignora).
+  await fetch(`${BASE}/api/dev/rate-limit`, { method: "DELETE" }).catch(() => {});
   console.log("== Setup: registro/login + conexión WhatsApp ==");
   // En una instancia ya en uso el registro está cerrado: se apunta al
   // propietario existente con E2E_OWNER_EMAIL/E2E_OWNER_PASSWORD.
@@ -674,15 +681,15 @@ async function main() {
     body: JSON.stringify({
       phoneNumberId: PN,
       to: LEAD,
-      text: "te contesto yo, dame un minuto",
-      waMessageId: "wamid.e2e.008.echo.1",
+      text: `te contesto yo, dame un minuto (${RUN})`,
+      waMessageId: `wamid.e2e.008.echo.1.${RUN}`,
     }),
   });
   ok("echo entregado al webhook", echo1.res.ok, JSON.stringify(echo1.json));
   await sleep(900);
 
   const msgs1 = (await api(`/api/conversations/${conv008.id}/messages`)).json?.messages ?? [];
-  const manual1 = msgs1.find((m) => m.text === "te contesto yo, dame un minuto");
+  const manual1 = msgs1.find((m) => m.text === `te contesto yo, dame un minuto (${RUN})`);
   ok(
     "el mensaje manual aparece como saliente origin=manual",
     manual1?.direction === "out" && manual1?.origin === "manual" && manual1?.status === "sent",
@@ -707,15 +714,15 @@ async function main() {
     body: JSON.stringify({
       phoneNumberId: PN,
       to: LEAD,
-      text: "te contesto yo, dame un minuto",
-      waMessageId: "wamid.e2e.008.echo.1",
+      text: `te contesto yo, dame un minuto (${RUN})`,
+      waMessageId: `wamid.e2e.008.echo.1.${RUN}`,
     }),
   });
   await sleep(700);
   const msgs2 = (await api(`/api/conversations/${conv008.id}/messages`)).json?.messages ?? [];
   ok(
     "echo duplicado (mismo wamid) no duplica el mensaje",
-    msgs2.filter((m) => m.text === "te contesto yo, dame un minuto").length === 1
+    msgs2.filter((m) => m.text === `te contesto yo, dame un minuto (${RUN})`).length === 1
   );
 
   // Variante defensiva: echoes bajo la clave `messages`.
@@ -725,7 +732,7 @@ async function main() {
       phoneNumberId: PN,
       to: LEAD,
       text: "segundo mensaje manual",
-      waMessageId: "wamid.e2e.008.echo.2",
+      waMessageId: `wamid.e2e.008.echo.2.${RUN}`,
       useMessagesKey: true,
     }),
   });
@@ -743,7 +750,7 @@ async function main() {
       phoneNumberId: PN,
       to: "5214627008002",
       text: "hola, te escribo del anuncio",
-      waMessageId: "wamid.e2e.008.echo.3",
+      waMessageId: `wamid.e2e.008.echo.3.${RUN}`,
     }),
   });
   await sleep(700);
@@ -923,7 +930,7 @@ async function main() {
       type: "image",
       mediaId: "media-e2e-echo-img",
       caption: "así quedaría tu logo",
-      waMessageId: "wamid.e2e.008.echo.img",
+      waMessageId: `wamid.e2e.008.echo.img.${RUN}`,
     }),
   });
   await sleep(1600);

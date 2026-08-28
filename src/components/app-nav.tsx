@@ -20,6 +20,7 @@ import { cn, initials } from "@/lib/utils";
 import { signOut } from "@/lib/auth/client";
 import { useEvents } from "@/components/use-events";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { OrgSwitcher } from "@/components/org-switcher";
 import { APP_VERSION, BUILD_COMMIT, versionLabel } from "@/lib/version";
 
 const NAV = [
@@ -118,6 +119,9 @@ export function AppNav({
           <span className="block text-[11px] text-text-3">CRM · WhatsApp</span>
         </span>
       </div>
+
+      {/* 005: solo se pinta si la persona pertenece a más de una organización */}
+      <OrgSwitcher />
 
       <nav className="flex flex-col gap-0.5">
         {NAV.filter((item) => can(rol, item.permission)).map((item) => {

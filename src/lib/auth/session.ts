@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { getAuth } from "@/lib/auth";
 import { normalizeRole, type Role } from "@/lib/auth/permissions";
-import { resolveMembership } from "@/server/auth/on-signup";
+import { resolveActiveMembership } from "@/server/auth/membership";
 
 export type SessionContext = {
   userId: string;
@@ -25,9 +25,16 @@ export async function requireSession(): Promise<SessionContext> {
   const auth = getAuth();
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) throw new UnauthorizedError();
-  // La sesión puede crearse antes de que la membresía exista (registro
-  // inicial) — la membresía en BD es la fuente de verdad de org + rol.
-  const membership = await resolveMembership(session.user.id);
+  // La membresía en BD es la fuente de verdad de org + rol. La organización
+  // ACTIVA la elige `session.activeOrganizationId` (005): una persona puede
+  // pertenecer a varias y cambiar entre ellas.
+  const activeOrganizationId = (
+    session.session as { activeOrganizationId?: string | null }
+  ).activeOrganizationId;
+  const membership = await resolveActiveMembership(
+    session.user.id,
+    activeOrganizationId
+  );
   if (!membership) {
     throw new UnauthorizedError("Sesión sin organización activa");
   }

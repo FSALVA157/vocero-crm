@@ -29,11 +29,22 @@ if (!url) {
 const sql = postgres(url, { max: 1, onnotice: () => {} });
 const db = drizzle(sql, { schema });
 
-const orgs = await db.select().from(schema.organization).limit(1);
-const org = orgs[0];
-if (!org) {
+// 005: con varias organizaciones hay que decir cuál (--org <slug>).
+const orgs = await db.select().from(schema.organization);
+const orgArg = process.argv.find((a) => a.startsWith("--org="))?.slice(6)
+  ?? process.argv[process.argv.indexOf("--org") + 1 || 0];
+const org = orgs.length === 1 && !orgArg ? orgs[0] : orgs.find((o) => o.slug === orgArg);
+if (orgs.length === 0) {
   console.error(
     "[seed] No hay organización: regístrate primero en la app y vuelve a correr el seed"
+  );
+  await sql.end();
+  process.exit(1);
+}
+if (!org) {
+  console.error(
+    `[seed] Hay ${orgs.length} organizaciones: indica cuál con --org <slug>. Disponibles: ` +
+      orgs.map((o) => o.slug).join(", ")
   );
   await sql.end();
   process.exit(1);

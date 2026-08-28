@@ -33,19 +33,26 @@ type WaMockState = {
   outbox: OutboxEntry[];
   templates: MockTemplate[];
   counter: number;
+  /** Sello de los ids emitidos; rota con cada reset (ver nextOutboundWamid). */
+  seal: string;
 };
 
 const globalForMock = globalThis as unknown as { __waMockState?: WaMockState };
 
+const newSeal = () => Math.random().toString(36).slice(2, 8);
+
 export function getWaMockState(): WaMockState {
   if (!globalForMock.__waMockState) {
-    globalForMock.__waMockState = { outbox: [], templates: [], counter: 0 };
+    globalForMock.__waMockState = { outbox: [], templates: [], counter: 0, seal: newSeal() };
   }
   return globalForMock.__waMockState;
 }
 
 export function resetWaMockState(): void {
-  globalForMock.__waMockState = { outbox: [], templates: [], counter: 0 };
+  // El sello ROTA con el contador: si el contador vuelve a 0 y el sello no,
+  // la segunda corrida del self-test en el mismo proceso re-emite los mismos
+  // ids que la primera y el UNIQUE de wa_message_id la tumba con un 500.
+  globalForMock.__waMockState = { outbox: [], templates: [], counter: 0, seal: newSeal() };
 }
 
 export function nextN(): number {
@@ -58,8 +65,15 @@ export function nextN(): number {
  * el UNIQUE de `wa_message_id` en la BD de una corrida anterior (500 al
  * enviar). No es un fallo del producto: la idempotencia hace su trabajo.
  */
-const boot = Math.random().toString(36).slice(2, 8);
-
 export function nextOutboundWamid(): string {
-  return `wamid.mock.out.${boot}.${nextN()}`;
+  return `wamid.mock.out.${getWaMockState().seal}.${nextN()}`;
+}
+
+/** Los entrantes y echoes simulados también llevan sello, por la misma razón. */
+export function nextInboundWamid(): string {
+  return `wamid.mock.in.${getWaMockState().seal}.${nextN()}`;
+}
+
+export function nextEchoWamid(): string {
+  return `wamid.mock.echo.${getWaMockState().seal}.${nextN()}`;
 }

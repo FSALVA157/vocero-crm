@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { count, eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import {
   DEFAULT_BRANDING,
@@ -37,11 +37,10 @@ export async function getBrandingContext(
         .from(schema.organization)
         .where(eq(schema.organization.id, organizationId))
         .limit(1)
-    : // Sin sesión (login, layout raíz): la única organización de la instancia.
-      await db
-        .select({ id: schema.organization.id, metadata: schema.organization.metadata })
-        .from(schema.organization)
-        .limit(1);
+    : // Sin sesión (login, layout raíz): la marca de la organización SOLO si
+      // es la única. Con varias, la neutra: el login no puede saber a cuál
+      // pertenece quien mira, y mostrar una cualquiera la delataría (005).
+      await sinSesion(db);
   if (!rows[0]) return { organizationId: null, branding: DEFAULT_BRANDING };
   const meta = parseMetadata(rows[0].metadata);
   return {
@@ -50,6 +49,15 @@ export async function getBrandingContext(
       (meta.branding as Partial<Branding> | undefined) ?? null
     ),
   };
+}
+
+async function sinSesion(db: ReturnType<typeof getDb>) {
+  const [total] = await db.select({ n: count() }).from(schema.organization);
+  if ((total?.n ?? 0) !== 1) return [];
+  return db
+    .select({ id: schema.organization.id, metadata: schema.organization.metadata })
+    .from(schema.organization)
+    .limit(1);
 }
 
 export async function getBranding(
