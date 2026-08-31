@@ -96,6 +96,8 @@ No corre E2E: eso es tuyo antes de declarar "Hecho".
 | La clave/modelo de IA de una organización | `src/server/ai/config.ts` (cifrada) → `chatJson(schema, msgs, { organizationId })` |
 | La clave del bot externo | `src/server/bot/keys.ts` (hash) → `requireBotAuth(req)` devuelve la organización |
 | El token del webhook de una organización | `src/server/org/webhook-token.ts` |
+| Suscribir el webhook en Meta (nivel app + override por WABA) | `src/server/whatsapp/subscription.ts` → `POST /api/settings/whatsapp/subscribe` (botón, NO en Guardar: pisa el callback de toda la app) |
+| Los datos de demostración (cargar/borrar, qué se reconoce como demo) | `src/server/seed/demo.ts` (`seedDemo`, `deleteDemoData`, por contenido y scoped) + `/api/seed/demo` |
 | Adoptar secretos del `.env` al actualizar | `src/server/startup/adopt-env-secrets.ts` (corre en `instrumentation.ts`) |
 | Quién puede registrarse / crear empresa | `src/server/auth/registration.ts` (código de invitación) + `on-signup.ts` (crea org solo en registro público) |
 | Organización activa de una sesión | `src/server/auth/membership.ts` → `session.activeOrganizationId`; cambio en `POST /api/organizations/switch` |

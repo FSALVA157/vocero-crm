@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { ContactAvatar } from "@/components/avatar";
 import { usePuede } from "@/components/role-context";
 import { Button } from "@/components/ui/button";
+import { DemoSeedConfirm } from "@/components/demo/demo-data-panel";
 import { formatTime, previewText } from "./helpers";
 
 const STAGE_DOT: Record<string, string> = {
@@ -20,18 +21,27 @@ const STAGE_DOT: Record<string, string> = {
 
 function EmptyState({ onSeeded }: { onSeeded: () => void }) {
   const [seeding, setSeeding] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
   // Cargar la demo escribe sobre la organización entera: solo el propietario.
   const puedeSembrar = usePuede("seed.demo");
 
+  // 007: nada se escribe hasta que el propietario confirma sabiendo qué
+  // va a pasar (pisa el perfil del agente, llena el KB…).
   async function seed() {
     setSeeding(true);
     const res = await fetch("/api/seed/demo", { method: "POST" }).catch(
       () => null
     );
     setSeeding(false);
+    setConfirming(false);
     if (res?.ok) onSeeded();
-    else setFailed(true);
+    else {
+      const data = (await res?.json().catch(() => null)) as {
+        error?: { message?: string };
+      } | null;
+      setFailed(data?.error?.message ?? "No se pudo cargar la demo");
+    }
   }
 
   return (
@@ -41,17 +51,26 @@ function EmptyState({ onSeeded }: { onSeeded: () => void }) {
         Cuando alguien escriba a tu número de WhatsApp, su conversación
         aparecerá aquí en tiempo real.
       </p>
-      {puedeSembrar && !failed && (
+      {puedeSembrar && !failed && !confirming && (
         <Button
           size="sm"
           variant="outline"
           disabled={seeding}
-          onClick={() => void seed()}
+          onClick={() => setConfirming(true)}
         >
           <Sparkles className="h-4 w-4" strokeWidth={1.7} />
-          {seeding ? "Cargando demo…" : "Cargar datos de demostración"}
+          Cargar datos de demostración
         </Button>
       )}
+      {puedeSembrar && confirming && (
+        <DemoSeedConfirm
+          compact
+          busy={seeding}
+          onConfirm={() => void seed()}
+          onCancel={() => setConfirming(false)}
+        />
+      )}
+      {failed && <p className="text-xs text-destructive">{failed}</p>}
     </div>
   );
 }

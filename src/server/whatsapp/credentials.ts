@@ -13,6 +13,10 @@ export type Credentials = {
   verifiedName: string | null;
   status: "connected" | "reconnect_required";
   token: string;
+  /** 007: App ID de la app de Meta (modo directo). null = agencia. */
+  appId: string | null;
+  /** 007: hay App Secret guardado (nunca el valor). */
+  hasAppSecret: boolean;
 };
 
 type Row = typeof schema.metaCredentials.$inferSelect;
@@ -31,6 +35,8 @@ function toCredentials(row: Row): Credentials {
       iv: row.tokenIv,
       tag: row.tokenTag,
     }),
+    appId: row.appId ?? null,
+    hasAppSecret: Boolean(row.appSecretCipher),
   };
 }
 
@@ -108,6 +114,8 @@ export async function saveCredentials(input: {
   token: string;
   /** 005: opcional; si viene, reemplaza el guardado. */
   appSecret?: string | null;
+  /** 007: mismo contrato — `undefined` conserva, `null`/"" borra. */
+  appId?: string | null;
   displayPhoneNumber?: string | null;
   verifiedName?: string | null;
 }): Promise<void> {
@@ -128,6 +136,8 @@ export async function saveCredentials(input: {
             };
           })()
         : { appSecretCipher: null, appSecretIv: null, appSecretTag: null };
+  const appIdFields =
+    input.appId === undefined ? {} : { appId: input.appId?.trim() || null };
 
   await db
     .insert(schema.metaCredentials)
@@ -143,6 +153,7 @@ export async function saveCredentials(input: {
       tokenTag: enc.tag,
       status: "connected",
       ...appSecretFields,
+      ...appIdFields,
     })
     .onConflictDoUpdate({
       target: [schema.metaCredentials.organizationId],
@@ -157,6 +168,7 @@ export async function saveCredentials(input: {
         status: "connected",
         updatedAt: new Date(),
         ...appSecretFields,
+        ...appIdFields,
       },
     });
 }

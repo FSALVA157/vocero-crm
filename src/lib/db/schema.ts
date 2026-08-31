@@ -470,6 +470,12 @@ export const metaCredentials = pgTable(
     appSecretCipher: text("app_secret_cipher"),
     appSecretIv: text("app_secret_iv"),
     appSecretTag: text("app_secret_tag"),
+    /**
+     * 007 — ID público de la app de Meta de la organización (modo directo).
+     * Con el App Secret forma el app token `APP_ID|APP_SECRET` para suscribir
+     * el webhook a nivel app. No es secreto: va en claro. NULL = agencia.
+     */
+    appId: text("app_id"),
     status: text("status", { enum: ["connected", "reconnect_required"] })
       .notNull()
       .default("connected"),

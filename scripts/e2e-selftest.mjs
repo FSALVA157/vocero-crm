@@ -129,7 +129,7 @@ async function main() {
       fromUserId: "bsu_e2e_1",
       name: "Dueña Dental",
       text: "hola, vi su anuncio",
-      waMessageId: "wamid.e2e.bsuid.1",
+      waMessageId: `wamid.e2e.bsuid.1.${RUN}`,
     }),
   });
   ok("inbound BSUID entregado", inb1.res.ok, JSON.stringify(inb1.json));
@@ -153,7 +153,12 @@ async function main() {
     JSON.stringify(outbox.map((o) => o.to))
   );
 
-  // Idempotencia: re-entrega del mismo wa_message_id
+  // Idempotencia: re-entrega del mismo wa_message_id. Se compara antes/después
+  // (no "=== 1"): contra una BD persistente la conversación acumula entrantes
+  // de corridas anteriores y el conteo absoluto no dice nada.
+  const inBefore = (
+    (await api(`/api/conversations/${bsuidConv?.id}/messages`)).json?.messages ?? []
+  ).filter((m) => m.direction === "in").length;
   await api("/api/dev/wa-mock/inbound", {
     method: "POST",
     body: JSON.stringify({
@@ -161,7 +166,7 @@ async function main() {
       fromUserId: "bsu_e2e_1",
       name: "Dueña Dental",
       text: "hola, vi su anuncio",
-      waMessageId: "wamid.e2e.bsuid.1",
+      waMessageId: `wamid.e2e.bsuid.1.${RUN}`,
     }),
   });
   await sleep(800);
@@ -169,7 +174,7 @@ async function main() {
     (await api(`/api/conversations/${bsuidConv?.id}/messages`)).json?.messages ??
     [];
   const inCount = msgs.filter((m) => m.direction === "in").length;
-  ok("webhook duplicado no duplica mensajes", inCount === 1, `in=${inCount}`);
+  ok("webhook duplicado no duplica mensajes", inCount === inBefore, `in=${inCount} antes=${inBefore}`);
 
   console.log("\n== us-bsuid: reconciliación 521/52 ==");
   await api("/api/dev/wa-mock/inbound", {
@@ -663,7 +668,7 @@ async function main() {
       from: LEAD,
       name: "Lead 008",
       text: "hola, quiero informes",
-      waMessageId: "wamid.e2e.008.in.1",
+      waMessageId: `wamid.e2e.008.in.1.${RUN}`,
     }),
   });
   await sleep(1200);
@@ -856,7 +861,7 @@ async function main() {
       type: "image",
       mediaId: "media-e2e-img-1",
       caption: "foto de mi negocio",
-      waMessageId: "wamid.e2e.008.in.img",
+      waMessageId: `wamid.e2e.008.in.img.${RUN}`,
     }),
   });
   await sleep(1600); // ingesta + descarga in-process del binario
@@ -882,7 +887,7 @@ async function main() {
       from: LEAD,
       type: "location",
       location: { latitude: 20.5, longitude: -100.8, name: "Mi taller" },
-      waMessageId: "wamid.e2e.008.in.loc",
+      waMessageId: `wamid.e2e.008.in.loc.${RUN}`,
     }),
   });
   await sleep(900);
@@ -903,7 +908,7 @@ async function main() {
       from: LEAD,
       type: "image",
       mediaId: "broken-no-url",
-      waMessageId: "wamid.e2e.008.in.broken",
+      waMessageId: `wamid.e2e.008.in.broken.${RUN}`,
     }),
   });
   await sleep(1600);

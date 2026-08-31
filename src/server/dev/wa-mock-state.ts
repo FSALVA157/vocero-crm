@@ -29,9 +29,26 @@ export type MockTemplate = {
   components?: unknown[];
 };
 
+/** 007: suscripción a nivel app registrada por POST /{app-id}/subscriptions. */
+export type MockAppSubscription = {
+  callback_url: string;
+  verify_token: string;
+  fields: string[];
+};
+
+/** 007: fila de GET /{waba}/subscribed_apps. */
+export type MockWabaSubscription = {
+  whatsapp_business_api_data: { id: string; name: string; link: string };
+  override_callback_uri?: string;
+};
+
 type WaMockState = {
   outbox: OutboxEntry[];
   templates: MockTemplate[];
+  /** 007: por App ID. */
+  appSubscriptions: Record<string, MockAppSubscription>;
+  /** 007: por WABA ID. */
+  wabaSubscriptions: Record<string, MockWabaSubscription[]>;
   counter: number;
   /** Sello de los ids emitidos; rota con cada reset (ver nextOutboundWamid). */
   seal: string;
@@ -43,7 +60,14 @@ const newSeal = () => Math.random().toString(36).slice(2, 8);
 
 export function getWaMockState(): WaMockState {
   if (!globalForMock.__waMockState) {
-    globalForMock.__waMockState = { outbox: [], templates: [], counter: 0, seal: newSeal() };
+    globalForMock.__waMockState = {
+      outbox: [],
+      templates: [],
+      appSubscriptions: {},
+      wabaSubscriptions: {},
+      counter: 0,
+      seal: newSeal(),
+    };
   }
   return globalForMock.__waMockState;
 }
@@ -52,7 +76,14 @@ export function resetWaMockState(): void {
   // El sello ROTA con el contador: si el contador vuelve a 0 y el sello no,
   // la segunda corrida del self-test en el mismo proceso re-emite los mismos
   // ids que la primera y el UNIQUE de wa_message_id la tumba con un 500.
-  globalForMock.__waMockState = { outbox: [], templates: [], counter: 0, seal: newSeal() };
+  globalForMock.__waMockState = {
+      outbox: [],
+      templates: [],
+      appSubscriptions: {},
+      wabaSubscriptions: {},
+      counter: 0,
+      seal: newSeal(),
+    };
 }
 
 export function nextN(): number {

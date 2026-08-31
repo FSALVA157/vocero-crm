@@ -12,6 +12,7 @@ const TABS: { href: string; label: string; permission: Permission }[] = [
   { href: "/settings/templates", label: "Plantillas", permission: "templates.write" },
   { href: "/settings/integrations", label: "Integraciones", permission: "integrations.write" },
   { href: "/settings/team", label: "Equipo", permission: "team.read" },
+  { href: "/settings/demo", label: "Demo", permission: "seed.demo" },
 ];
 
 export function SettingsNav({ role }: { role: string }) {
