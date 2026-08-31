@@ -23,6 +23,8 @@ export const PERMISSIONS = [
   "pipeline.leads.write",
   "templates.read",
   "agent.read",
+  // 008: métricas generales, sin nombres — decisión del dueño: los tres roles.
+  "metrics.read",
   // Configuración del negocio — owner + admin
   "pipeline.stages.write",
   "agent.write",
@@ -52,6 +54,7 @@ const MEMBER: Permission[] = [
   // Quitarlos rompe la pantalla que el operador SÍ debe ver.
   "templates.read",
   "agent.read",
+  "metrics.read",
 ];
 
 /** El Administrador configura el negocio; no toca las llaves ni la gente. */

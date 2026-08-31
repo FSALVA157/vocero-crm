@@ -132,6 +132,10 @@ export async function moveLeadToStage(input: MoveInput): Promise<MoveResult> {
         actorUserId: input.actorUserId ?? null,
         source: input.source,
         approximate: false,
+        // 008 — snapshot del monto DESPUÉS de aplicar `extra`: si el dueño
+        // movió la tarjeta y tocó el monto en la misma acción, vale el nuevo.
+        amountCents: leadRow.amountCents,
+        currency: leadRow.currency,
         lossReason: target.kind === "lost" ? input.lossReason ?? null : null,
         lossNote: target.kind === "lost" ? input.lossNote ?? null : null,
       });
