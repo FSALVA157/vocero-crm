@@ -1,8 +1,19 @@
 import { apiError, withAuth } from "@/lib/api";
 import { getDb } from "@/lib/db";
-import { isDomainEmpty, seedDemo } from "@/server/seed/demo";
+import {
+  deleteDemoData,
+  demoStatus,
+  isDomainEmpty,
+  seedDemo,
+} from "@/server/seed/demo";
 
 export const dynamic = "force-dynamic";
+
+/** Qué hay de demo en la organización (007, FR-203). */
+export const GET = withAuth(async (session) => {
+  const status = await demoStatus(getDb(), session.organizationId);
+  return Response.json(status);
+}, { permission: "seed.demo" });
 
 /**
  * Carga el negocio demo (FR-075). Solo con la BD de dominio vacía — la
@@ -20,4 +31,14 @@ export const POST = withAuth(async (session) => {
   }
   const result = await seedDemo(db, session.organizationId);
   return Response.json({ ok: true, ...result });
+}, { permission: "seed.demo" });
+
+/**
+ * Borra los datos demo de ESTA organización (007, FR-202): contactos demo con
+ * todo lo que cuelga, KB demo y corrida demo. No toca el perfil del agente ni
+ * nada que el propietario haya creado o editado. Idempotente.
+ */
+export const DELETE = withAuth(async (session) => {
+  const removed = await deleteDemoData(getDb(), session.organizationId);
+  return Response.json({ ok: true, removed });
 }, { permission: "seed.demo" });

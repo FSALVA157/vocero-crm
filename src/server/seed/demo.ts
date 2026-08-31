@@ -1,12 +1,15 @@
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, or } from "drizzle-orm";
 import type { getDb } from "@/lib/db";
 import { schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
+import { scoped } from "@/lib/db/tenant";
 
 /**
  * Negocio de demostración "Ferretería El Martillo" (FR-075).
- * Idempotente: borra los datos demo previos de la organización (scoped por
- * los teléfonos demo) y reinserta. El KB queda lleno EXCEPTO garantías y
+ * Idempotente: borra los datos demo previos de ESTA organización
+ * (`deleteDemoData`) y reinserta. 007: la limpieza es por contenido y acotada
+ * al tenant — antes seleccionaba los contactos demo por teléfono sin filtrar
+ * por organización y sembrar en B borraba la demo de A. El KB queda lleno EXCEPTO garantías y
  * devoluciones — hueco INTENCIONAL para que el Laboratorio encuentre algo
  * real en la primera corrida.
  */
@@ -114,6 +117,9 @@ const DEMO_CONTACTS: {
   },
 ];
 
+/** Teléfonos/identidades de los contactos demo (rango de prueba, 007). */
+export const DEMO_PHONES: readonly string[] = DEMO_CONTACTS.map((c) => c.phone);
+
 const DEMO_KB: { kind: "qa" | "block"; question?: string; answer?: string; content?: string }[] = [
   {
     kind: "block",
@@ -130,45 +136,94 @@ const DEMO_KB: { kind: "qa" | "block"; question?: string; answer?: string; conte
   // HUECO INTENCIONAL: nada sobre garantías ni devoluciones (lo encuentra el Laboratorio).
 ];
 
+/** Casos de la corrida demo del Laboratorio (también sirven para reconocerla). */
+const DEMO_LAB_CASES: {
+  persona: string;
+  veredicto: "verde" | "amarillo" | "rojo";
+  hallazgos: unknown[];
+  transcript: { role: string; text: string }[];
+}[] = [
+  {
+    persona: "comprador_decidido",
+    veredicto: "verde",
+    hallazgos: [],
+    transcript: [
+      { role: "cliente", text: "¿Tienen taladros inalámbricos disponibles?" },
+      { role: "agente", text: "¡Sí! Truper 20V en $1,899 MXN y DeWalt 20V MAX en $3,450 MXN." },
+      { role: "cliente", text: "Me convence, lo compro. ¿Cómo pago?" },
+      { role: "agente", text: "Aceptamos efectivo, tarjeta, SPEI o contra entrega. Te lo aparto ahora mismo." },
+    ],
+  },
+  {
+    persona: "pregunton_precios",
+    veredicto: "verde",
+    hallazgos: [],
+    transcript: [
+      { role: "cliente", text: "¿Qué precio tiene el martillo?" },
+      { role: "agente", text: "Tenemos varios; el más pedido es el Truper de uña. ¿Te confirmo precio y existencia con el equipo?" },
+    ],
+  },
+  {
+    persona: "cliente_enojado",
+    veredicto: "amarillo",
+    hallazgos: [
+      {
+        tipo: "tono",
+        evidencia:
+          "El agente respondió correcto pero algo frío ante 'es una porquería'; faltó empatizar antes de escalar.",
+      },
+    ],
+    transcript: [
+      { role: "cliente", text: "Compré una lijadora la semana pasada y ya no prende, es una porquería" },
+      { role: "agente", text: "Lamento el problema. Paso tu caso a un compañero del equipo para resolverlo." },
+    ],
+  },
+  {
+    persona: "fuera_de_kb",
+    veredicto: "rojo",
+    hallazgos: [
+      {
+        tipo: "fuera_de_kb",
+        evidencia:
+          "El cliente preguntó por garantías y devoluciones y el conocimiento no lo cubre.",
+        sugerencia: {
+          pregunta: "¿Cuál es la política de garantías y devoluciones?",
+          respuesta:
+            "Aceptamos devoluciones dentro de los 30 días con ticket de compra; la garantía depende del fabricante.",
+        },
+      },
+    ],
+    transcript: [
+      { role: "cliente", text: "¿Cuál es su política de garantías y devoluciones?" },
+      { role: "agente", text: "Déjame confirmarlo con el equipo y te digo en un momento." },
+    ],
+  },
+  {
+    persona: "pide_humano",
+    veredicto: "verde",
+    hallazgos: [],
+    transcript: [
+      { role: "cliente", text: "Prefiero que me atienda una persona, quiero hablar con un humano" },
+      { role: "agente", text: "(handoff: la conversación pasó a atención humana)" },
+    ],
+  },
+  {
+    persona: "errores_modismos",
+    veredicto: "verde",
+    hallazgos: [],
+    transcript: [
+      { role: "cliente", text: "ke onda, si benden pintura?" },
+      { role: "agente", text: "¡Claro! Manejamos Comex y Berel. ¿Qué necesitas pintar?" },
+    ],
+  },
+];
+
 export async function seedDemo(
   db: Db,
   organizationId: string
 ): Promise<{ contacts: number; kbEntries: number }> {
-  const demoPhones = DEMO_CONTACTS.map((c) => c.phone);
-
-  // --- Idempotencia: limpiar datos demo previos (orden inverso de FKs) ---
-  const prevContacts = await db
-    .select({ id: schema.contact.id })
-    .from(schema.contact)
-    .where(inArray(schema.contact.phone, demoPhones));
-  const prevIds = prevContacts.map((c) => c.id);
-  if (prevIds.length > 0) {
-    const prevConvs = await db
-      .select({ id: schema.conversation.id })
-      .from(schema.conversation)
-      .where(inArray(schema.conversation.contactId, prevIds));
-    const convIds = prevConvs.map((c) => c.id);
-    if (convIds.length > 0) {
-      await db
-        .delete(schema.message)
-        .where(inArray(schema.message.conversationId, convIds));
-      await db
-        .delete(schema.conversation)
-        .where(inArray(schema.conversation.id, convIds));
-    }
-    await db.delete(schema.lead).where(inArray(schema.lead.contactId, prevIds));
-    await db.delete(schema.contact).where(inArray(schema.contact.id, prevIds));
-  }
-  // KB y corridas demo previas
-  await db
-    .delete(schema.kbEntry)
-    .where(eq(schema.kbEntry.organizationId, organizationId));
-  await db
-    .delete(schema.agentTestCase)
-    .where(eq(schema.agentTestCase.organizationId, organizationId));
-  await db
-    .delete(schema.agentTestRun)
-    .where(eq(schema.agentTestRun.organizationId, organizationId));
+  // --- Idempotencia: limpiar SOLO los datos demo previos de esta organización ---
+  await deleteDemoData(db, organizationId);
 
   // --- Etapas (por nombre) ---
   const stages = await db
@@ -276,87 +331,7 @@ export async function seedDemo(
     startedAt: new Date(now - 24 * HOURS),
     finishedAt: new Date(now - 24 * HOURS + 3 * 60 * 1000),
   });
-  const exampleCases: {
-    persona: string;
-    veredicto: "verde" | "amarillo" | "rojo";
-    hallazgos: unknown[];
-    transcript: { role: string; text: string }[];
-  }[] = [
-    {
-      persona: "comprador_decidido",
-      veredicto: "verde",
-      hallazgos: [],
-      transcript: [
-        { role: "cliente", text: "¿Tienen taladros inalámbricos disponibles?" },
-        { role: "agente", text: "¡Sí! Truper 20V en $1,899 MXN y DeWalt 20V MAX en $3,450 MXN." },
-        { role: "cliente", text: "Me convence, lo compro. ¿Cómo pago?" },
-        { role: "agente", text: "Aceptamos efectivo, tarjeta, SPEI o contra entrega. Te lo aparto ahora mismo." },
-      ],
-    },
-    {
-      persona: "pregunton_precios",
-      veredicto: "verde",
-      hallazgos: [],
-      transcript: [
-        { role: "cliente", text: "¿Qué precio tiene el martillo?" },
-        { role: "agente", text: "Tenemos varios; el más pedido es el Truper de uña. ¿Te confirmo precio y existencia con el equipo?" },
-      ],
-    },
-    {
-      persona: "cliente_enojado",
-      veredicto: "amarillo",
-      hallazgos: [
-        {
-          tipo: "tono",
-          evidencia:
-            "El agente respondió correcto pero algo frío ante 'es una porquería'; faltó empatizar antes de escalar.",
-        },
-      ],
-      transcript: [
-        { role: "cliente", text: "Compré una lijadora la semana pasada y ya no prende, es una porquería" },
-        { role: "agente", text: "Lamento el problema. Paso tu caso a un compañero del equipo para resolverlo." },
-      ],
-    },
-    {
-      persona: "fuera_de_kb",
-      veredicto: "rojo",
-      hallazgos: [
-        {
-          tipo: "fuera_de_kb",
-          evidencia:
-            "El cliente preguntó por garantías y devoluciones y el conocimiento no lo cubre.",
-          sugerencia: {
-            pregunta: "¿Cuál es la política de garantías y devoluciones?",
-            respuesta:
-              "Aceptamos devoluciones dentro de los 30 días con ticket de compra; la garantía depende del fabricante.",
-          },
-        },
-      ],
-      transcript: [
-        { role: "cliente", text: "¿Cuál es su política de garantías y devoluciones?" },
-        { role: "agente", text: "Déjame confirmarlo con el equipo y te digo en un momento." },
-      ],
-    },
-    {
-      persona: "pide_humano",
-      veredicto: "verde",
-      hallazgos: [],
-      transcript: [
-        { role: "cliente", text: "Prefiero que me atienda una persona, quiero hablar con un humano" },
-        { role: "agente", text: "(handoff: la conversación pasó a atención humana)" },
-      ],
-    },
-    {
-      persona: "errores_modismos",
-      veredicto: "verde",
-      hallazgos: [],
-      transcript: [
-        { role: "cliente", text: "ke onda, si benden pintura?" },
-        { role: "agente", text: "¡Claro! Manejamos Comex y Berel. ¿Qué necesitas pintar?" },
-      ],
-    },
-  ];
-  for (const c of exampleCases) {
+  for (const c of DEMO_LAB_CASES) {
     await db.insert(schema.agentTestCase).values({
       id: newId("testCase"),
       organizationId,
@@ -383,4 +358,159 @@ export async function isDomainEmpty(
     .where(eq(schema.contact.organizationId, organizationId))
     .limit(1);
   return rows.length === 0;
+}
+
+/* ============================================================
+ * 007 — reconocimiento y borrado de la demo (por contenido, sin bandera)
+ * ============================================================ */
+
+/**
+ * Una entrada de KB es demo si coincide EXACTAMENTE con una de `DEMO_KB`. Si
+ * el propietario la editó, deja de ser demo: ya es suya y no se borra.
+ */
+export function isDemoKbEntry(row: {
+  kind: string;
+  question: string | null;
+  answer: string | null;
+  content: string | null;
+}): boolean {
+  return DEMO_KB.some(
+    (d) =>
+      d.kind === row.kind &&
+      (d.question ?? null) === row.question &&
+      (d.answer ?? null) === row.answer &&
+      (d.content ?? null) === row.content
+  );
+}
+
+/**
+ * Una corrida es demo si sus casos son EXACTAMENTE los de `DEMO_LAB_CASES`
+ * (misma cantidad, misma persona y mismo transcript). Una corrida real jamás
+ * reproduce ese transcript palabra por palabra.
+ */
+export function isDemoRun(
+  cases: { persona: string; transcript: unknown }[]
+): boolean {
+  if (cases.length !== DEMO_LAB_CASES.length) return false;
+  const key = (persona: string, transcript: unknown) =>
+    `${persona}\u0000${JSON.stringify(transcript ?? null)}`;
+  const expected = new Set(DEMO_LAB_CASES.map((c) => key(c.persona, c.transcript)));
+  return cases.every((c) => expected.has(key(c.persona, c.transcript)));
+}
+
+function demoContactFilter(organizationId: string) {
+  const phones = [...DEMO_PHONES];
+  return scoped(
+    schema.contact.organizationId,
+    organizationId,
+    or(
+      inArray(schema.contact.phone, phones),
+      inArray(schema.contact.waIdentity, phones)
+    )
+  );
+}
+
+async function demoRunIds(db: Db, organizationId: string): Promise<string[]> {
+  const cases = await db
+    .select({
+      runId: schema.agentTestCase.runId,
+      persona: schema.agentTestCase.persona,
+      transcript: schema.agentTestCase.transcript,
+    })
+    .from(schema.agentTestCase)
+    .where(scoped(schema.agentTestCase.organizationId, organizationId));
+  const byRun = new Map<string, { persona: string; transcript: unknown }[]>();
+  for (const c of cases) {
+    const list = byRun.get(c.runId) ?? [];
+    list.push({ persona: c.persona, transcript: c.transcript });
+    byRun.set(c.runId, list);
+  }
+  return [...byRun.entries()]
+    .filter(([, list]) => isDemoRun(list))
+    .map(([runId]) => runId);
+}
+
+export type DemoStatus = {
+  present: boolean;
+  contacts: number;
+  kbEntries: number;
+  runs: number;
+};
+
+/** Qué hay de demo en la organización (para la UI). */
+export async function demoStatus(
+  db: Db,
+  organizationId: string
+): Promise<DemoStatus> {
+  const contacts = await db
+    .select({ id: schema.contact.id })
+    .from(schema.contact)
+    .where(demoContactFilter(organizationId));
+  const kb = await db
+    .select({
+      kind: schema.kbEntry.kind,
+      question: schema.kbEntry.question,
+      answer: schema.kbEntry.answer,
+      content: schema.kbEntry.content,
+    })
+    .from(schema.kbEntry)
+    .where(scoped(schema.kbEntry.organizationId, organizationId));
+  const kbEntries = kb.filter(isDemoKbEntry).length;
+  const runs = (await demoRunIds(db, organizationId)).length;
+  return {
+    present: contacts.length > 0 || kbEntries > 0 || runs > 0,
+    contacts: contacts.length,
+    kbEntries,
+    runs,
+  };
+}
+
+/**
+ * Borra los datos demo de UNA organización y nada más (007, FR-202):
+ * contactos demo (en cascada: conversaciones, mensajes, leads, eventos de
+ * etapa, jobs), entradas de KB idénticas a la demo y corridas demo del
+ * Laboratorio. NO toca `agent_profile`: si el cliente ya personalizó el
+ * agente, no se destruye. Idempotente.
+ */
+export async function deleteDemoData(
+  db: Db,
+  organizationId: string
+): Promise<DemoStatus> {
+  const before = await demoStatus(db, organizationId);
+
+  await db.delete(schema.contact).where(demoContactFilter(organizationId));
+
+  const kb = await db
+    .select({
+      id: schema.kbEntry.id,
+      kind: schema.kbEntry.kind,
+      question: schema.kbEntry.question,
+      answer: schema.kbEntry.answer,
+      content: schema.kbEntry.content,
+    })
+    .from(schema.kbEntry)
+    .where(scoped(schema.kbEntry.organizationId, organizationId));
+  const kbIds = kb.filter(isDemoKbEntry).map((k) => k.id);
+  if (kbIds.length > 0) {
+    await db
+      .delete(schema.kbEntry)
+      .where(
+        scoped(schema.kbEntry.organizationId, organizationId, inArray(schema.kbEntry.id, kbIds))
+      );
+  }
+
+  const runIds = await demoRunIds(db, organizationId);
+  if (runIds.length > 0) {
+    await db
+      .delete(schema.agentTestRun)
+      .where(
+        scoped(
+          schema.agentTestRun.organizationId,
+          organizationId,
+          inArray(schema.agentTestRun.id, runIds)
+        )
+      );
+  }
+
+  return { ...before, present: before.present };
 }

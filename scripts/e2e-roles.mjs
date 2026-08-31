@@ -127,6 +127,9 @@ const prohibidoOperador = [
   ["POST", "/api/lab/runs", {}],
   ["POST", "/api/pipeline/stages", { name: "Nueva" }],
   ["POST", "/api/seed/demo", {}],
+  ["DELETE", "/api/seed/demo", null],
+  ["GET", "/api/seed/demo", null],
+  ["POST", "/api/settings/whatsapp/subscribe", {}],
   ["GET", "/api/settings/team", null],
   ["GET", "/api/settings/webhook", null],
   ["POST", "/api/templates/sync", {}],
@@ -192,6 +195,8 @@ for (const [method, path, body] of [
   ["PUT", "/api/settings/whatsapp", { wabaId: "X", phoneNumberId: "Y", token: "Z" }],
   ["POST", "/api/settings/team", { name: "N", email: `x-${S}@v.test`, password: "12345678" }],
   ["POST", "/api/seed/demo", {}],
+  ["DELETE", "/api/seed/demo", null],
+  ["POST", "/api/settings/whatsapp/subscribe", {}],
 ]) {
   const { res } = await admin.api(path, {
     method,

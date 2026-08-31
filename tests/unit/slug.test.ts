@@ -30,11 +30,15 @@ describe("newOrgSlug", () => {
     expect(a.startsWith("ferreteria-")).toBe(true);
   });
 
-  it("1000 slugs del mismo nombre son todos distintos", () => {
+  it("1000 slugs del mismo nombre son (prácticamente) todos distintos", () => {
+    // Sufijo de 3 bytes = 16,7 M valores: entre 1000 muestras la paradoja del
+    // cumpleaños da ~3 % de probabilidad de UNA colisión, así que exigir 1000
+    // exactos hacía el test aleatoriamente rojo. Dos o más colisiones son
+    // astronómicamente improbables: eso sí delataría un generador roto.
     const set = new Set(
       Array.from({ length: 1000 }, () => newOrgSlug("Negocio"))
     );
-    expect(set.size).toBe(1000);
+    expect(set.size).toBeGreaterThanOrEqual(998);
   });
 });
 

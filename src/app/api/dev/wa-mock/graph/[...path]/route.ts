@@ -61,6 +61,30 @@ export async function GET(req: Request, ctx: Params) {
     });
   }
 
+  // GET {appId}/subscriptions (007) → suscripciones a nivel app
+  if (path.length === 2 && path[1] === "subscriptions") {
+    const sub = getWaMockState().appSubscriptions[path[0]!];
+    return Response.json({
+      data: sub
+        ? [
+            {
+              object: "whatsapp_business_account",
+              callback_url: sub.callback_url,
+              active: true,
+              fields: sub.fields.map((name) => ({ name, version: "v25.0" })),
+            },
+          ]
+        : [],
+    });
+  }
+
+  // GET {wabaId}/subscribed_apps (007) → apps suscritas a la WABA (+ override)
+  if (path.length === 2 && path[1] === "subscribed_apps") {
+    return Response.json({
+      data: getWaMockState().wabaSubscriptions[path[0]!] ?? [],
+    });
+  }
+
   // GET {mediaId} (ids "media...") → metadata de adjunto (media proxy del bot)
   if (path.length === 1 && path[0]!.startsWith("media")) {
     const origin = new URL(req.url).origin;
@@ -212,8 +236,63 @@ export async function POST(req: Request, ctx: Params) {
     return Response.json({ id: tpl.id, status: "PENDING", category: tpl.category });
   }
 
-  // POST {wabaId}/subscribed_apps → suscripción (con o sin override)
+  // POST {appId}/subscriptions (007) → suscripción a nivel app. Exige app
+  // token (APP_ID|APP_SECRET); un App ID que empiece por "unreachable" imita
+  // el handshake fallido de Meta contra el callback (código 2200).
+  if (path.length === 2 && path[1] === "subscriptions") {
+    if (!token.includes("|")) {
+      return Response.json(
+        {
+          error: {
+            message: "(#100) This endpoint requires an app access token (APP_ID|APP_SECRET)",
+            type: "GraphMethodException",
+            code: 100,
+            fbtrace_id: "mock",
+          },
+        },
+        { status: 400 }
+      );
+    }
+    if (path[0]!.startsWith("unreachable")) {
+      return Response.json(
+        {
+          error: {
+            message:
+              "(#2200) Callback verification failed with the following errors: curl_errno = 28; curl_error = Operation timed out; HTTP Status Code = 0",
+            type: "OAuthException",
+            code: 2200,
+            fbtrace_id: "mock",
+          },
+        },
+        { status: 400 }
+      );
+    }
+    const fields = Array.isArray(body.fields)
+      ? (body.fields as unknown[]).map(String)
+      : String(body.fields ?? "messages").split(",");
+    getWaMockState().appSubscriptions[path[0]!] = {
+      callback_url: String(body.callback_url ?? ""),
+      verify_token: String(body.verify_token ?? ""),
+      fields,
+    };
+    return Response.json({ success: true });
+  }
+
+  // POST {wabaId}/subscribed_apps → suscripción (con o sin override). 007:
+  // queda registrada para que GET la devuelva.
   if (path.length === 2 && path[1] === "subscribed_apps") {
+    const state = getWaMockState();
+    const row = {
+      whatsapp_business_api_data: {
+        id: "mock-app",
+        name: "Vocero (mock)",
+        link: "https://www.facebook.com/games/?app_id=mock-app",
+      },
+      ...(body.override_callback_uri
+        ? { override_callback_uri: String(body.override_callback_uri) }
+        : {}),
+    };
+    state.wabaSubscriptions[path[0]!] = [row];
     return Response.json({ success: true });
   }
 

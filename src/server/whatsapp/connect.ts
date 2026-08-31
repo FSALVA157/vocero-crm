@@ -77,7 +77,13 @@ export async function subscribeAppToWaba(
   wabaId: string,
   token: string,
   override?: { callbackUrl: string; verifyToken: string }
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{
+  ok: boolean;
+  error?: string;
+  /** 007: código y status de Meta, para traducir el fallo a una acción. */
+  errorCode?: number | null;
+  errorStatus?: number;
+}> {
   try {
     await graphRequest(`${wabaId}/subscribed_apps`, {
       method: "POST",
@@ -92,10 +98,13 @@ export async function subscribeAppToWaba(
     return { ok: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.warn(
-      "[connect] subscribed_apps falló (esperado en modo agencia sin permisos):",
-      message
-    );
-    return { ok: false, error: message };
+    // 007: sin culpar al "modo agencia" — el motivo real viaja a la UI.
+    console.warn("[connect] POST subscribed_apps rechazado por Meta:", message);
+    return {
+      ok: false,
+      error: message,
+      errorCode: err instanceof MetaApiError ? err.code : null,
+      errorStatus: err instanceof MetaApiError ? err.status : undefined,
+    };
   }
 }

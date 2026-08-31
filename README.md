@@ -187,12 +187,20 @@ Embedded Signup. Hay dos formas de obtenerlo:
    acceso a la WABA y genera un token permanente con permisos
    `whatsapp_business_messaging` y `whatsapp_business_management`.
 3. En Vocero: **Configuración → WhatsApp** → pega WABA ID + Phone Number ID +
-   token → **Probar conexión** → Guardar.
-4. En el panel de Meta (WhatsApp → Configuration → Webhook) pega la **URL del
-   webhook** y el **verify token** que Vocero te muestra, y suscribe el campo
-   `messages` (y `message_template_status_update` si usarás plantillas).
-5. Recomendado: agrega `META_APP_SECRET` (App Secret de tu app) a las
-   variables de la instancia para la verificación de firma de cada evento.
+   token, y en "Tu app de Meta" el **App ID** y el **App Secret** de tu app
+   (Configuración de la app → Básica) → **Probar conexión** → Guardar. El App
+   Secret se guarda cifrado y activa la verificación de firma de cada evento.
+4. En la tarjeta **Suscripción del webhook** pulsa **Suscribir**: Vocero
+   suscribe la app al campo `messages` apuntando a la URL de tu organización,
+   aplica el override por WABA y verifica leyendo el estado real de Meta.
+   Cada paso dice ok / falló / omitido con el motivo y qué hacer; si falla
+   (p. ej. Meta no alcanza tu URL porque aún no es https pública), corrige y
+   vuelve a pulsar. Ojo: la suscripción a nivel app cambia el callback de
+   **toda** tu app de Meta — si esa app la usa otro sistema, dejará de recibir.
+5. Alternativa manual: en el panel de Meta (WhatsApp → Configuration →
+   Webhook) pega la **URL del webhook** y el **verify token** que Vocero te
+   muestra, y suscribe el campo `messages` (y `message_template_status_update`
+   si usarás plantillas).
 
 ### Modo agencia (Tech Provider) — para agencias
 
@@ -363,6 +371,26 @@ SemVer sobre lo que le importa a quien opera una instancia:
 | **Parche** (`1.1.1`) | Arreglos y ajustes. Actualizar es redesplegar. |
 
 La versión vive en `package.json` y se sube en el PR que publica el cambio.
+
+### 3.3.0 — Demo con confirmación y borrado · suscripción del webhook desde un botón
+
+**Demo.** "Cargar datos de demostración" ya no escribe nada sin avisar: antes
+muestra exactamente qué va a crear (8 contactos con conversaciones y embudo,
+8 entradas de conocimiento, 1 corrida del Laboratorio) y que **reemplaza el
+perfil del agente** por "Martillito". Y se puede deshacer: **Configuración →
+Demo → Borrar datos de demo** quita lo de la demo y respeta lo tuyo —
+contactos reales, entradas de conocimiento propias o editadas, corridas reales
+y el perfil del agente tal como lo dejaste. Se corrigió además un defecto de
+alcance: recargar la demo en una organización ya no tocaba los datos demo de
+otra organización de la misma instancia.
+
+**Webhook.** La conexión de WhatsApp guarda el **App ID** y el **App Secret**
+de tu app de Meta (modo directo), muestra si el override del webhook por WABA
+se aplicó al guardar (antes fallaba en silencio) y estrena la tarjeta
+**Suscripción del webhook**: un botón que suscribe la app al campo `messages`,
+aplica el override por WABA y verifica contra Meta, con el resultado de cada
+paso y su remedio. Va en un botón, no en Guardar, porque el nivel app cambia
+el callback de toda tu app de Meta. Migración aditiva (`meta_credentials.app_id`).
 
 ### 3.2.0 — Cola durable del agente y rol `worker`
 
@@ -540,7 +568,9 @@ pnpm seed:demo
 Carga la **Ferretería El Martillo** (8 contactos con conversaciones, pipeline,
 knowledge base y una corrida de Laboratorio). Dos guardas: si lo corres antes
 de registrarte avisa y no hace nada, y si la organización ya tiene datos se
-niega a pisarlos. Para recargar la demo desde cero:
+niega a pisarlos. Desde la app: la bandeja vacía ofrece el mismo botón (con
+confirmación) y **Configuración → Demo** permite borrar la demo después sin
+tocar lo que no sea de la demo. Para recargar desde el script:
 
 ```bash
 pnpm seed:demo --force
