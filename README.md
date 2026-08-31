@@ -372,6 +372,20 @@ SemVer sobre lo que le importa a quien opera una instancia:
 
 La versión vive en `package.json` y se sube en el PR que publica el cambio.
 
+### 3.4.0 — Módulo de métricas
+
+Nueva página **Métricas** (visible para todos los roles): qué entró y de qué
+fuente, tratos ganados y perdidos con motivos, dinero cerrado y pipeline en
+juego, eficacia del bot (primera respuesta, % resuelto solo por IA, handoffs
+por motivo, score del Laboratorio) y seguimiento del equipo (respuesta tras
+handoff, leads en riesgo, no leídos envejecidos, días por etapa) — todo
+comparado contra el período anterior (7/30/90 días). Agnóstico al rubro: sale
+del embudo, los tiempos y la autoría que el CRM ya registra. Los datos de
+demostración se excluyen. Migración aditiva: cada movimiento de etapa guarda
+el monto del momento, así "cuánto cerré en julio" no cambia si el trato se
+edita después. Gráficas con Recharts (librería compilada en la imagen; sin
+servicios externos).
+
 ### 3.3.0 — Demo con confirmación y borrado · suscripción del webhook desde un botón
 
 **Demo.** "Cargar datos de demostración" ya no escribe nada sin avisar: antes

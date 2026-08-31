@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  ChartColumn,
   FlaskConical,
   Inbox,
   Kanban,
@@ -27,6 +28,7 @@ const NAV = [
   { href: "/inbox", label: "Bandeja", icon: Inbox, badge: true, permission: "inbox.read" },
   { href: "/pipeline", label: "Pipeline", icon: Kanban, permission: "pipeline.read" },
   { href: "/contacts", label: "Contactos", icon: Users, permission: "contacts.read" },
+  { href: "/metrics", label: "Métricas", icon: ChartColumn, permission: "metrics.read" },
   { href: "/agent", label: "Agente", icon: Sparkles, permission: "agent.write" },
   { href: "/lab", label: "Laboratorio", icon: FlaskConical, permission: "agent.write" },
 ] as const;

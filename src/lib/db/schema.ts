@@ -280,6 +280,13 @@ export const leadStageEvent = pgTable(
     /** true = fecha SEMBRADA en la migración, no observada. Cuenta para los
      *  totales pero jamás para promedios de tiempo. */
     approximate: boolean("approximate").notNull().default(false),
+    /**
+     * 008 — Snapshot del monto del lead AL MOMENTO del evento. Editar el
+     * trato después no reescribe el pasado (misma razón que to_stage_name).
+     * NULL = sin monto capturado entonces. Escribe solo stage-history.ts.
+     */
+    amountCents: integer("amount_cents"),
+    currency: text("currency"),
     lossReason: text("loss_reason", {
       enum: [
         "precio",

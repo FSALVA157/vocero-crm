@@ -410,7 +410,8 @@ function demoContactFilter(organizationId: string) {
   );
 }
 
-async function demoRunIds(db: Db, organizationId: string): Promise<string[]> {
+/** Ids de corridas demo de la organización (008: el score del Laboratorio las excluye). */
+export async function demoRunIds(db: Db, organizationId: string): Promise<string[]> {
   const cases = await db
     .select({
       runId: schema.agentTestCase.runId,

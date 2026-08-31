@@ -104,6 +104,7 @@ No corre E2E: eso es tuyo antes de declarar "Hecho".
 | La cola del agente (encolar/reclamar/reintentos) | `src/server/jobs/agent-queue.ts` (SQL) + `agent-consumer.ts` (loop) |
 | Qué levanta cada `ROLE` | `src/server/startup/background.ts` |
 | El bus de eventos entre procesos | `src/server/events/bus.ts` (`publish` = local + NOTIFY; `startEventBridge` = LISTEN) |
+| Las métricas del dashboard (qué se mide y cómo) | `src/server/metrics/overview.ts` (agregados on-read, demo/is_test/approximate fuera) → `GET /api/metrics/overview` |
 | UI | `src/components/` + `src/app/(app)/` |
 
 Los mocks del entorno de pruebas viven en `src/app/api/dev/` (wa-mock +
