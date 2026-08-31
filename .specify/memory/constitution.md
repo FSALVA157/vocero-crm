@@ -1,6 +1,68 @@
 <!--
 SYNC IMPACT REPORT
 ==================
+Versión: 1.4.0 → 2.0.0
+
+Cambios:
+  - Preámbulo → ENMENDADO: el producto opera en DOS modos — self-hosted por una
+    agencia (como hasta hoy) y SaaS multi-tenant operado por un vendedor que
+    cobra por el servicio. Ambos son de primera clase.
+  - Principio II "Soberanía" → REDEFINIDO (incompatible con 1.x, de ahí el
+    MAJOR): la lista cerrada de dependencias de runtime — que se CONSERVA como
+    mecanismo — se amplía con (a) Instagram DM como canal del mismo proveedor
+    Meta, y (b) un PSP de cobro (Stripe y/o MercadoPago), OPCIONAL, con cuatro
+    salvaguardas duras (adaptador dedicado; los datos de tarjeta jamás tocan la
+    instancia; degradación completa sin PSP; todo lo no listado sigue
+    prohibido). Se añade la regla de binarios: TODO binario persiste en un
+    volumen del operador, obligatorio en producción (opción A elegida por el
+    responsable el 2026-08-31; S3/R2 sigue prohibido). Se alinean dos textos
+    envejecidos: la configuración de IA es por organización (no
+    OPENROUTER_MODEL de instancia) y lo que necesita el instalador.
+  - Principio III "Multi-Tenancy Real" → ACLARADO: la frontera de secretos
+    distingue "secretos que dan acceso a datos de un tenant" (por organización)
+    de "secretos del negocio del operador de la instancia" (cobro, cifrado,
+    firma — de la instancia). Una tarea en segundo plano puede resolver su
+    organización desde un registro durable propio (p. ej.
+    agent_job.organization_id), no solo desde una credencial.
+  - Principio VIII "Foco Vertical" → REDEFINIDO (incompatible con 1.x): se
+    elimina la exclusión "billing/planes/plataforma quedan FUERA"; facturación,
+    planes y medición de consumo son features de primera clase del modo SaaS.
+    La vertical NO se ensancha: siguen excluidos el marketing masivo, el
+    scraping y los constructores de flujos genéricos. El canal pasa de
+    "WhatsApp Cloud API" a "los canales de mensajería de Meta (WhatsApp
+    primero; Instagram DM)".
+  - Restricciones de Plataforma → texto de registro actualizado: el código de
+    invitación (SIGNUP_INVITE_CODE) reemplaza la descripción del ALLOW_SIGNUP
+    muerto.
+  - Principios I, IV, V, VI, VII, IX y Governance: íntegros (sin cambio).
+
+Bump: MAJOR (1.4.0 → 2.0.0) — dos principios se redefinen de forma incompatible
+con su letra anterior ("PROHIBIDO Stripe u otro billing"; "billing, planes,
+multi-instancia quedan FUERA"). La honestidad del versionado importa más que la
+comodidad de un MINOR.
+
+Motivación:
+  El plan del PMV (specs/roadmap-pmv.md, PM ago 2026) convierte el producto en
+  un SaaS self-service vendible: cobro con Stripe/MercadoPago, medición por
+  conversación e Instagram como segundo canal. La constitución 1.x prohibía
+  exactamente eso. El responsable del proyecto decidió enmendar (2026-08-31)
+  ANTES de escribir código de billing, como exige el Principio VI. La enmienda
+  amplía la lista cerrada sin abandonar el mecanismo que la hace valiosa: cada
+  dependencia nueva sigue necesitando enmienda explícita, el self-hosted sin
+  billing sigue siendo un producto completo, y el dinero del cliente final vive
+  en el PSP, nunca en la instancia.
+
+Plantillas dependientes: revisadas — sin referencias a la lista de P-II ni al
+alcance de P-VIII; sin cambios necesarios. CLAUDE.md → actualizado en el mismo
+PR (resumen de Soberanía).
+
+Decisión registrada: adjuntos/binarios = opción A (volumen persistente
+obligatorio), elegida entre A/B/C del análisis del 2026-08-28.
+-->
+
+<!--
+SYNC IMPACT REPORT
+==================
 Versión: 1.3.0 → 1.4.0
 
 Cambios:
@@ -87,11 +149,13 @@ TODOs diferidos:
 
 # Vocero CRM Constitution
 
-Vocero CRM es un CRM de WhatsApp con agente de IA, open source (MIT), self-hosted y
-gratuito, diseñado para que las agencias de IA lo desplieguen en el VPS de sus
-clientes. Una instancia sirve a uno o varios negocios, cada uno completamente
-aislado de los demás. Esta constitución define las reglas no
-negociables del producto. Aplica a todas las fases del flujo de trabajo (specify,
+Vocero CRM es un CRM de mensajería de Meta (WhatsApp primero) con agente de IA,
+open source (MIT). Opera en DOS modos, ambos de primera clase: **self-hosted**,
+desplegado por una agencia en el VPS del cliente, gratuito y completo sin
+servicios de cobro; y **SaaS multi-tenant**, operado por un vendedor que aloja
+la instancia, mide el consumo y cobra por el servicio. En ambos, una instancia
+sirve a uno o varios negocios, cada uno completamente aislado de los demás.
+Esta constitución define las reglas no negociables del producto. Aplica a todas las fases del flujo de trabajo (specify,
 plan, tasks, implement). Cualquier conflicto entre una decisión de implementación y
 esta constitución SE RESUELVE A FAVOR de esta constitución.
 
@@ -113,30 +177,55 @@ velocidad de entrega o conveniencia de desarrollo.
 **Rationale**: Una fuga de credenciales o un cruce de datos entre clientes es un
 fallo catastrófico e irreversible; prevenirlo siempre cuesta menos que remediarlo.
 
-### II. Soberanía / Self-Hosted (ENDURECIDO)
+### II. Soberanía / Lista Cerrada de Dependencias (ENDURECIDO)
 
 Vocero CRM opera completo sobre la infraestructura del operador. La lista de
-dependencias externas en runtime es CERRADA:
+dependencias externas en runtime es CERRADA — ampliarla exige enmienda:
 
 - Dependencias externas permitidas en runtime, ÚNICAMENTE:
-  1. **WhatsApp Cloud API** (Meta Graph API) — el canal es la razón de ser del
-     producto.
-  2. **El proveedor LLM**, opcional, accedido EXCLUSIVAMENTE a través del adaptador
-     OpenRouter-compatible (`OPENROUTER_BASE_URL` / `OPENROUTER_MODEL`). Sin token
-     configurado, el producto funciona como CRM sin agente de IA.
-- **PROHIBIDO en v1**: almacenamiento de objetos externo (S3/R2), servicios de
-  email, Stripe u otro billing, y servicios de Google. Cualquier feature que los
-  requiera queda fuera del alcance de v1.
-- El instalador solo necesita: un VPS con Coolify o Docker, un dominio, credenciales
-  de Meta y (opcional) un token de OpenRouter. Nada más.
+  1. **Meta Graph API** — los canales de mensajería de Meta: WhatsApp Cloud API
+     (la razón de ser del producto) e Instagram DM. Un solo proveedor, un solo
+     adaptador.
+  2. **El proveedor LLM**, opcional, accedido EXCLUSIVAMENTE a través del
+     adaptador OpenRouter-compatible. La clave y el modelo son de cada
+     organización (Principio III); de la instancia, solo la URL base del
+     proveedor. Sin clave configurada, el producto funciona como CRM sin agente
+     de IA.
+  3. **El PSP de cobro** (Stripe y/o MercadoPago), OPCIONAL y solo en el modo
+     SaaS, bajo cuatro salvaguardas duras:
+     - Se accede tras un **adaptador dedicado**, como Graph y el LLM: el dominio
+       no conoce al PSP.
+     - **Los datos de tarjeta jamás tocan la instancia**: el checkout y el
+       almacenamiento del medio de pago viven en el PSP; aquí solo viajan
+       identificadores de referencia y webhooks **firmados e idempotentes**
+       (Principio IV).
+     - **Degradación completa**: sin PSP configurado, la instancia es un
+       producto entero — el modo self-hosted gratuito no es un recorte, es un
+       modo.
+     - El consumo medido y lo cobrado deben poder **conciliarse**: lo que se
+       factura sale de datos del dominio, auditables por tenant.
+- **PROHIBIDO todo lo no listado**: almacenamiento de objetos externo (S3/R2),
+  servicios de email, servicios de Google y cualquier otro. Cada necesidad
+  nueva se resuelve con una enmienda explícita, nunca con un "ya que estamos".
+- **Binarios en volumen del operador**: todo archivo binario (adjuntos, medios)
+  persiste en un volumen del operador; en producción, un volumen persistente es
+  OBLIGATORIO — un deploy jamás borra datos. (Decisión A, 2026-08-31.)
+- El instalador self-hosted necesita: un VPS con Coolify o Docker, un dominio y
+  las claves de instancia (base de datos, cifrado, firma). Las credenciales de
+  Meta y la clave del LLM se cargan DENTRO del producto, por organización; el
+  registro público se gobierna con el código de invitación de la instancia.
 - Las funciones core —autenticación y base de datos— corren self-hosted (Better
   Auth + PostgreSQL propios de la instancia).
 - Las integraciones externas permitidas se aíslan tras adaptadores dedicados
-  (cliente Graph API propio; adaptador LLM) para no acoplar el dominio a ellas.
+  (cliente Graph API propio; adaptador LLM; adaptador de cobro) para no acoplar
+  el dominio a ellas.
 
-**Rationale**: El producto se regala para que agencias lo desplieguen en VPS de
-clientes; cada dependencia externa adicional es un costo, un punto de fallo y una
-fuga de soberanía que rompe la promesa "gratis y tuyo".
+**Rationale**: La regla valiosa nunca fue "no Stripe": es que la lista sea
+CERRADA y cada dependencia entre por la puerta grande, con salvaguardas escritas.
+En el modo self-hosted cada dependencia extra es un costo y una fuga de soberanía
+que rompe la promesa "gratis y tuyo"; en el modo SaaS, el cobro es parte del
+producto — pero el dinero del cliente final vive en el PSP y el producto entero
+sigue funcionando sin él.
 
 ### III. Multi-Tenancy Real
 
@@ -152,12 +241,17 @@ aislado del resto: sus datos, sus secretos y su configuración.
   en el entorno de la instancia.** Credenciales de canal, claves de proveedores
   de IA, secretos de webhook y claves de API de servicio pertenecen a la
   organización y se guardan cifradas o hasheadas junto a ella. El entorno solo
-  lleva lo que es genuinamente de la instancia: conexión a la base, claves de
-  cifrado y firma, y URLs base.
+  lleva lo que es genuinamente del operador de la instancia: conexión a la
+  base, claves de cifrado y firma, URLs base y —en el modo SaaS— las
+  credenciales del PSP con el que ESE operador cobra. La frontera es "a qué da
+  acceso": un secreto que abre datos de un tenant es del tenant; un secreto del
+  negocio del operador es de la instancia.
 - Toda entrada externa (webhook, API de servicio, tarea en segundo plano)
-  RESUELVE su organización a partir de una credencial que la identifica, nunca
-  eligiéndola por conveniencia —"la primera", "la única"—: una consulta sin orden
-  determinista es una fuga esperando a que exista el segundo tenant.
+  RESUELVE su organización a partir de una credencial que la identifica o de un
+  registro durable que la lleva escrita (p. ej. la fila de una cola con su
+  `organization_id` NOT NULL), nunca eligiéndola por conveniencia —"la
+  primera", "la única"—: una consulta sin orden determinista es una fuga
+  esperando a que exista el segundo tenant.
 
 **Rationale**: Multi-tenancy diseñado desde el inicio evita reescrituras costosas y
 hace cumplible el aislamiento del Principio I. Las dos reglas añadidas salen de un
@@ -245,25 +339,30 @@ Las decisiones tomadas sin contexto suficiente se documentan para revisión huma
 **Rationale**: Las decisiones implícitas bajo incertidumbre son la principal fuente
 de deuda oculta; hacerlas visibles permite corregirlas a tiempo.
 
-### VIII. Foco Vertical — CRM de Conversaciones y Leads de WhatsApp
+### VIII. Foco Vertical — CRM de Conversaciones y Leads de Mensajería Meta
 
-Es un CRM de conversaciones y leads de WhatsApp que las agencias despliegan para
-negocios. No es plataforma de marketing masivo, ni constructor visual de flujos, ni
-herramienta de scraping. Lo que no ayude a *atender, organizar y convertir
-conversaciones de WhatsApp de un negocio* se rechaza.
+Es un CRM de conversaciones y leads de los canales de mensajería de Meta
+(WhatsApp primero; Instagram DM). No es plataforma de marketing masivo, ni
+constructor visual de flujos, ni herramienta de scraping. Lo que no ayude a
+*atender, organizar y convertir conversaciones de un negocio* se rechaza.
 
-- El modelo de datos y los flujos MUST reflejar ese dominio: contactos que escriben
-  por WhatsApp, conversaciones con ventana de 24h, leads en un pipeline, un agente
-  de IA que atiende con el conocimiento del negocio y escala a humanos.
-- WhatsApp Cloud API es el canal; el producto es el CRM. Features de canal que no
-  sirvan a atender/organizar/convertir (broadcast masivo, scraping de números,
-  flujos visuales genéricos) quedan FUERA del alcance de v1.
-- Toda feature MUST servir a la agencia que despliega o al negocio que opera UNA
-  instancia. Lo que solo sirva a una plataforma centralizada (billing, planes,
-  multi-instancia) queda FUERA.
+- El modelo de datos y los flujos MUST reflejar ese dominio: contactos que
+  escriben por un canal de Meta, conversaciones con ventana de 24h, leads en un
+  pipeline, un agente de IA que atiende con el conocimiento del negocio y
+  escala a humanos.
+- Los canales de Meta son el canal; el producto es el CRM. Features de canal que
+  no sirvan a atender/organizar/convertir (broadcast masivo, scraping de
+  números, flujos visuales genéricos) quedan FUERA.
+- Toda feature MUST servir a quien opera una instancia o a los negocios que
+  viven en ella — la agencia self-hosted, el vendedor SaaS o sus tenants. En el
+  modo SaaS, **facturación, planes y medición de consumo son features de
+  primera clase**: cobrar por el servicio es atender el negocio del operador,
+  no una desviación de la vertical.
 
-**Rationale**: Un foco vertical explícito mantiene el modelo de datos alineado con el
-negocio real y da un criterio claro para aceptar o rechazar alcance.
+**Rationale**: Un foco vertical explícito mantiene el modelo de datos alineado
+con el negocio real y da un criterio claro para aceptar o rechazar alcance. El
+SaaS no ensancha la vertical — cambia quién opera la instancia; lo que el CRM
+hace por cada negocio sigue siendo exactamente lo mismo.
 
 ### IX. Verificación de Comportamiento en Vivo (NO NEGOCIABLE)
 
@@ -315,9 +414,10 @@ Estas restricciones derivan de los Principios I y II y son verificables en revis
   través de adaptadores dedicados (cliente Graph API propio, adaptador LLM
   OpenRouter-compatible), no dispersas por el dominio.
 - **Instancia pública endurecida**: las rutas de mock/desarrollo devuelven 404
-  incondicional en producción; el registro se cierra tras la primera organización
-  (salvo habilitación explícita); los entornos de prueba internos JAMÁS alcanzan la
-  API real de WhatsApp.
+  incondicional en producción; el registro público exige el código de invitación
+  de la instancia (`SIGNUP_INVITE_CODE`) y queda cerrado si no se configuró; los
+  entornos de prueba internos JAMÁS alcanzan la API real de los canales ni del
+  PSP.
 
 ## Flujo de Desarrollo y Puertas de Calidad
 
@@ -362,4 +462,4 @@ práctica, convención o preferencia; ante un conflicto, gana la constitución.
 - **Propagación**: al enmendar la constitución se revisan y, si procede, se actualizan
   las plantillas dependientes (plan, spec, tasks).
 
-**Version**: 1.4.0 | **Ratified**: 2026-07-09 | **Last Amended**: 2026-08-28
+**Version**: 2.0.0 | **Ratified**: 2026-07-09 | **Last Amended**: 2026-08-31
