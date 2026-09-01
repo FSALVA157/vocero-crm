@@ -127,10 +127,13 @@ funciona igual.
 
 Ver [.specify/memory/constitution.md](.specify/memory/constitution.md).
 
-- **Soberanía (II, endurecida)**: dependencias de runtime SOLO WhatsApp Cloud
-  API + proveedor LLM OpenRouter-compatible opcional. PROHIBIDO en v1
-  introducir S3/R2, email, Stripe, Google u otros servicios externos. Auth y
-  BD self-hosted.
+- **Soberanía (II, enmendada 2.0.0)**: lista CERRADA de dependencias de
+  runtime — Meta Graph API (WhatsApp; Instagram DM), proveedor LLM
+  OpenRouter-compatible opcional, y PSP de cobro (Stripe/MercadoPago) OPCIONAL
+  solo en modo SaaS tras adaptador dedicado (datos de tarjeta jamás en la
+  instancia; sin PSP el producto está completo). PROHIBIDO todo lo no listado
+  (S3/R2, email, Google…). Binarios SIEMPRE en volumen persistente del
+  operador. Auth y BD self-hosted.
 - **Seguridad (I)**: secretos cifrados en reposo (AES-256-GCM, `lib/crypto`);
   jamás al cliente ni a logs. El token de WhatsApp solo muestra sus últimos 4.
 - **Multi-tenancy (III)**: `organization_id` NOT NULL en toda tabla de dominio;
