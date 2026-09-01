@@ -267,8 +267,10 @@ del cliente se conecta con el **override de callback por WABA**:
 ## Configuración de la IA
 
 Desde la app, en **Configuración → IA**: pega tu clave de
-[OpenRouter](https://openrouter.ai), elige el modelo del agente y —si quieres—
-uno más barato para el juez del Laboratorio, y pulsa **Probar conexión**.
+[OpenRouter](https://openrouter.ai), elige el modelo del agente del catálogo
+del proveedor (con contexto y precio por millón de tokens; los sugeridos van
+primero y también puedes escribir un ID a mano) y —si quieres— uno más barato
+para el juez del Laboratorio, y pulsa **Probar conexión**.
 
 La clave es **de tu organización**: se guarda cifrada, su consumo se factura a
 quien la puso, y una empresa nunca gasta la clave de otra. Si tu agencia te
@@ -371,6 +373,17 @@ SemVer sobre lo que le importa a quien opera una instancia:
 | **Parche** (`1.1.1`) | Arreglos y ajustes. Actualizar es redesplegar. |
 
 La versión vive en `package.json` y se sube en el PR que publica el cambio.
+
+### 3.5.0 — Selector de modelo y edición de la base de conocimiento
+
+En **Configuración → IA** el modelo ya no se escribe a ciegas: un selector con
+búsqueda muestra el catálogo del proveedor (solo modelos de texto, sin los
+`:free`), con tamaño de contexto y precio por millón de tokens; los sugeridos
+van primero y sigue aceptando un ID escrito a mano, avisando si no figura en
+el catálogo. Si el proveedor no responde, el campo degrada a texto libre. En
+**Agente → Knowledge base** cada entrada se puede **editar en el lugar**
+(antes había que borrar y volver a crear) y eliminar pide confirmación. Sin
+migraciones.
 
 ### 3.4.0 — Módulo de métricas
 

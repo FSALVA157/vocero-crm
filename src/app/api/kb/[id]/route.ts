@@ -1,28 +1,48 @@
 import { eq } from "drizzle-orm";
-import { z } from "zod";
-import { apiError, parseBody, withAuth } from "@/lib/api";
+import { apiError, withAuth } from "@/lib/api";
 import { getDb, schema } from "@/lib/db";
 import { scoped } from "@/lib/db/tenant";
+import { validateKbPatch } from "@/server/kb/patch";
 
 export const dynamic = "force-dynamic";
 
 type Params = { params: Promise<{ id: string }> };
 
-const patchSchema = z.object({
-  question: z.string().trim().min(1).max(500).optional(),
-  answer: z.string().trim().min(1).max(4000).optional(),
-  content: z.string().trim().min(1).max(8000).optional(),
-});
-
+/**
+ * Edita una entrada (009): el esquema depende del `kind` de la fila, así una
+ * P/R no puede recibir `content` ni un bloque `question`. La fila se resuelve
+ * scoped: una entrada de otra organización es "no encontrada".
+ */
 export const PATCH = withAuth(async (session, req: Request, ctx: Params) => {
   const { id } = await ctx.params;
-  const body = await parseBody(req, patchSchema);
-  if (!body.ok) return body.response;
+  let raw: unknown;
+  try {
+    raw = await req.json();
+  } catch {
+    return apiError(422, "invalid_body", "El body debe ser JSON válido");
+  }
 
   const db = getDb();
+  const rows = await db
+    .select({ kind: schema.kbEntry.kind })
+    .from(schema.kbEntry)
+    .where(
+      scoped(
+        schema.kbEntry.organizationId,
+        session.organizationId,
+        eq(schema.kbEntry.id, id)
+      )
+    )
+    .limit(1);
+  const row = rows[0];
+  if (!row) return apiError(404, "not_found", "Entrada no encontrada");
+
+  const patch = validateKbPatch(row.kind, raw);
+  if (!patch.ok) return apiError(422, "invalid_body", patch.detail);
+
   const updated = await db
     .update(schema.kbEntry)
-    .set({ ...body.data, updatedAt: new Date() })
+    .set({ ...patch.data, updatedAt: new Date() })
     .where(
       scoped(
         schema.kbEntry.organizationId,

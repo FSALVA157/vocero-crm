@@ -316,6 +316,66 @@ async function main() {
     JSON.stringify(profAgain.json?.profile?.tone)
   );
 
+  console.log("\n== us-mejoras-bot (009): editar la KB + catálogo de modelos ==");
+  const kbId = kbQa.json?.entry?.id;
+  // Texto único por corrida: la base local acumula entradas de corridas previas.
+  const nuevaRespuesta = `$900 (editado ${Date.now()}).`;
+  const patched = await api(`/api/kb/${kbId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ answer: nuevaRespuesta }),
+  });
+  ok(
+    "editar la respuesta de una P/R (PATCH) → 200 con el texto nuevo",
+    patched.res.ok && patched.json?.entry?.answer === nuevaRespuesta,
+    JSON.stringify(patched.json)
+  );
+  const profEdit = await bot("/api/bot/profile");
+  ok(
+    "la edición se refleja al instante en /api/bot/profile",
+    typeof profEdit.json?.kb === "string" && profEdit.json.kb.includes(nuevaRespuesta),
+    JSON.stringify(profEdit.json?.kb).slice(-200)
+  );
+  const badKind = await api(`/api/kb/${kbId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ content: "no corresponde a una P/R" }),
+  });
+  ok("`content` sobre una P/R → 422", badKind.res.status === 422, `status=${badKind.res.status}`);
+  const emptyPatch = await api(`/api/kb/${kbId}`, { method: "PATCH", body: "{}" });
+  ok("PATCH sin campos → 422", emptyPatch.res.status === 422, `status=${emptyPatch.res.status}`);
+  const ghostPatch = await api(`/api/kb/kb_no_existe`, {
+    method: "PATCH",
+    body: JSON.stringify({ answer: "x" }),
+  });
+  ok("PATCH a una entrada inexistente → 404", ghostPatch.res.status === 404);
+
+  const catalog = await api("/api/settings/ai/models");
+  const ids = Array.isArray(catalog.json?.models) ? catalog.json.models.map((m) => m.id) : [];
+  ok(
+    "catálogo de modelos desde el ai-mock → 200 con modelos",
+    catalog.res.ok && ids.length > 0,
+    JSON.stringify(catalog.json)
+  );
+  ok(
+    "filtra modelos de imagen y :free",
+    !ids.includes("mock/pintor") && !ids.includes("mock/gratis:free"),
+    JSON.stringify(ids)
+  );
+  ok(
+    "los sugeridos van primero",
+    ids[0] === "anthropic/claude-haiku-4.5" && ids.includes("mock/agente-basico"),
+    JSON.stringify(ids)
+  );
+  const basico = catalog.json?.models?.find((m) => m.id === "mock/agente-basico");
+  ok(
+    "precio en USD por millón de tokens y contexto",
+    basico?.promptPerM === 1 && basico?.completionPerM === 2 && basico?.contextLength === 128000,
+    JSON.stringify(basico)
+  );
+  ok(
+    "la clave del proveedor no viaja en el catálogo",
+    !JSON.stringify(catalog.json).includes("sk-"),
+  );
+
   console.log("\n== us-bot-api: contexto conversacional ==");
   const ctxNoKey = await api(`/api/bot/context?conversationId=${convId}`);
   ok("contexto sin API key → 401", ctxNoKey.res.status === 401);
