@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 
 const TABS: { href: string; label: string; permission: Permission }[] = [
   { href: "/settings/whatsapp", label: "WhatsApp", permission: "settings.read" },
+  { href: "/settings/instagram", label: "Instagram", permission: "settings.read" },
   { href: "/settings/ai", label: "IA", permission: "settings.ai.write" },
   { href: "/settings/branding", label: "Marca", permission: "settings.branding.write" },
   { href: "/settings/templates", label: "Plantillas", permission: "templates.write" },

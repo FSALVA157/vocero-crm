@@ -134,6 +134,17 @@ export const contact = pgTable(
      * `bsuid:<id>` cuando Meta no manda wa_id. Estable de por vida.
      */
     waIdentity: text("wa_identity").notNull(),
+    /**
+     * 010 — Canal por el que vive este contacto. Aditivo y con default: toda
+     * fila existente sigue significando exactamente lo mismo. La identidad
+     * de Instagram es `ig:<IGSID>` en `wa_identity` (el nombre de columna se
+     * conserva porque es contrato publicado de `/api/bot/context`).
+     */
+    channel: text("channel", { enum: ["whatsapp", "instagram"] })
+      .notNull()
+      .default("whatsapp"),
+    /** 010 — `@usuario` de Instagram (sin la arroba). Null en WhatsApp. */
+    channelHandle: text("channel_handle"),
     /** Teléfono como ATRIBUTO opcional (003): falta en contactos BSUID. */
     phone: text("phone"),
     /** Business-Scoped User ID si se conoce (003). */
@@ -162,7 +173,15 @@ export const contact = pgTable(
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
   (t) => [
-    uniqueIndex("contact_org_wa_identity_uq").on(t.organizationId, t.waIdentity),
+    // 010: el canal entra en la llave. Sin él, un IGSID que coincidiera con
+    // un teléfono normalizado mezclaría dos personas en silencio. TODO
+    // `onConflictDoNothing` sobre contact debe nombrar estas tres columnas
+    // (lo vigila tests/unit/conflict-targets.test.ts).
+    uniqueIndex("contact_org_channel_identity_uq").on(
+      t.organizationId,
+      t.channel,
+      t.waIdentity
+    ),
     index("contact_org_wa_user_id_idx").on(t.organizationId, t.waUserId),
     index("contact_org_name_idx").on(t.organizationId, t.name),
   ]
@@ -330,6 +349,19 @@ export const conversation = pgTable(
       .references(() => contact.id, { onDelete: "cascade" }),
     /** Conversación del Laboratorio: jamás toca la API de WhatsApp. */
     isTest: boolean("is_test").notNull().default(false),
+    /**
+     * 010 — Canal de la conversación. Denormalizado del contacto a propósito:
+     * el ruteo de salida y el filtro de la bandeja lo leen en cada mensaje.
+     */
+    channel: text("channel", { enum: ["whatsapp", "instagram"] })
+      .notNull()
+      .default("whatsapp"),
+    /**
+     * 010 — Identificador del hilo en la plataforma de origen. Zernio entrega
+     * un conversationId opaco que hace falta para responder; WhatsApp y Meta
+     * directo no lo necesitan y queda null.
+     */
+    channelThreadRef: text("channel_thread_ref"),
     aiEnabled: boolean("ai_enabled").notNull().default(true),
     handoffAt: timestamp("handoff_at"),
     handoffReason: text("handoff_reason", {
@@ -356,6 +388,7 @@ export const conversation = pgTable(
       .on(t.organizationId, t.contactId)
       .where(sql`${t.isTest} = false`),
     index("conversation_org_last_idx").on(t.organizationId, t.lastMessageAt),
+    index("conversation_org_channel_idx").on(t.organizationId, t.channel),
   ]
 );
 
@@ -493,6 +526,75 @@ export const metaCredentials = pgTable(
     uniqueIndex("meta_credentials_org_uq").on(t.organizationId),
     // El webhook enruta por phone_number_id: debe ser único en la instancia.
     uniqueIndex("meta_credentials_phone_uq").on(t.phoneNumberId),
+  ]
+);
+
+/**
+ * 010 — Conexión de Instagram de una organización. Tabla explícita (no jsonb)
+ * por la misma razón que `meta_credentials`: forma fija, tipado e índices. El
+ * token, el App Secret y el secreto del webhook de Zernio van cifrados con los
+ * mismos helpers que el token de WhatsApp — un segundo mecanismo de cifrado
+ * sería un segundo mecanismo que auditar.
+ */
+export const instagramCredentials = pgTable(
+  "instagram_credentials",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    /** Por dónde entran y salen los mensajes: app de Meta o agregador Zernio. */
+    source: text("source", { enum: ["meta", "zernio"] }).notNull(),
+    /**
+     * `oauth` = obtenido por Business Login (renovable cada 60 días);
+     * `manual` = pegado por el operador (caducidad desconocida). En Zernio es
+     * siempre `manual` (la API key no caduca por sí sola).
+     */
+    tokenKind: text("token_kind", { enum: ["oauth", "manual"] }).notNull(),
+    /**
+     * IG_ID del perfil profesional: por él enruta el webhook (`entry[].id`).
+     * Único en la instancia: una cuenta no puede vivir en dos organizaciones.
+     * En Zernio, si no se obtiene el IG_ID numérico: `zernio:<accountId>`.
+     */
+    igUserId: text("ig_user_id").notNull(),
+    username: text("username"),
+    displayName: text("display_name"),
+    /** URL temporal de Meta; best-effort en la UI, nunca se descarga. */
+    profilePictureUrl: text("profile_picture_url"),
+    tokenCipher: text("token_cipher").notNull(),
+    tokenIv: text("token_iv").notNull(),
+    tokenTag: text("token_tag").notNull(),
+    /** 60 días desde el canje/refresh en `oauth`; null en `manual`. */
+    tokenExpiresAt: timestamp("token_expires_at"),
+    /**
+     * App Secret de la app PROPIA de la organización (modo avanzado), para la
+     * firma del webhook por organización. Null = app de plataforma
+     * (INSTAGRAM_APP_SECRET de la instancia) o sin firma.
+     */
+    appSecretCipher: text("app_secret_cipher"),
+    appSecretIv: text("app_secret_iv"),
+    appSecretTag: text("app_secret_tag"),
+    /** Zernio: `accountId` de la cuenta conectada (va en cada envío). */
+    zernioAccountId: text("zernio_account_id"),
+    /** Zernio: webhook creado por Vocero; se borra al desconectar. */
+    zernioWebhookId: text("zernio_webhook_id"),
+    zernioWebhookSecretCipher: text("zernio_webhook_secret_cipher"),
+    zernioWebhookSecretIv: text("zernio_webhook_secret_iv"),
+    zernioWebhookSecretTag: text("zernio_webhook_secret_tag"),
+    status: text("status", { enum: ["connected", "reconnect_required"] })
+      .notNull()
+      .default("connected"),
+    /** Motivo legible del último fallo de auth/refresh. Jamás contiene tokens. */
+    lastError: text("last_error"),
+    /** Última suscripción exitosa a `messages`; informativo (el estado real se lee en vivo). */
+    subscribedAt: timestamp("subscribed_at"),
+    connectedAt: timestamp("connected_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("instagram_credentials_org_uq").on(t.organizationId),
+    uniqueIndex("instagram_credentials_ig_user_uq").on(t.igUserId),
+    index("instagram_credentials_zernio_account_idx").on(t.zernioAccountId),
   ]
 );
 

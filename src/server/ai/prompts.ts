@@ -1,4 +1,5 @@
 import type { schema } from "@/lib/db";
+import { CHANNEL_LABEL, type Channel } from "@/lib/channels";
 
 type AgentProfile = typeof schema.agentProfile.$inferSelect;
 type KbEntry = typeof schema.kbEntry.$inferSelect;
@@ -26,11 +27,14 @@ export function buildAgentSystemPrompt(input: {
   profile: AgentProfile;
   kb: KbEntry[];
   stages: { name: string }[];
+  /** 010: canal de la conversación; ausente = WhatsApp (compatibilidad). */
+  channel?: Channel;
 }): string {
   const { profile } = input;
   const stageNames = input.stages.map((s) => s.name).join(" | ");
+  const channelLabel = CHANNEL_LABEL[input.channel ?? "whatsapp"];
   return [
-    `Eres "${profile.name}", el asistente de WhatsApp de este negocio. Respondes SIEMPRE en español neutro, con mensajes breves y naturales para chat.`,
+    `Eres "${profile.name}", el asistente de ${channelLabel} de este negocio. Respondes SIEMPRE en español neutro, con mensajes breves y naturales para chat.`,
     profile.tone ? `Tono: ${profile.tone}` : null,
     profile.instructions ? `Instrucciones del negocio:\n${profile.instructions}` : null,
     profile.escalationRules

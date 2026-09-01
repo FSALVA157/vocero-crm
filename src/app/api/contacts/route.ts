@@ -137,8 +137,16 @@ export const POST = withAuth(async (session, req: Request) => {
       notes: body.data.notes ?? null,
       source: body.data.source ?? null,
     })
+    // 010: el canal entra en el target porque entra en el índice único
+    // (`contact_org_channel_identity_uq`). Postgres exige que ON CONFLICT
+    // nombre EXACTAMENTE las columnas de un índice existente: sin `channel`,
+    // el alta falla en la petición con "no unique or exclusion constraint".
     .onConflictDoNothing({
-      target: [schema.contact.organizationId, schema.contact.waIdentity],
+      target: [
+        schema.contact.organizationId,
+        schema.contact.channel,
+        schema.contact.waIdentity,
+      ],
     })
     .returning();
   if (!inserted[0]) {

@@ -88,6 +88,8 @@ No corre E2E: eso es tuyo antes de declarar "Hecho".
 | Las acciones que puede tomar el agente | `src/server/ai/actions.ts` + ejecución en `src/server/ai/pipeline.ts` |
 | Las personas o el juez del Laboratorio | `src/server/lab/personas.ts` · `src/server/lab/judge.ts` |
 | El canal WhatsApp (Graph API) | `src/lib/meta/` (cliente único) + `src/server/whatsapp/` |
+| El canal Instagram DM (Meta directo o Zernio) | `src/server/instagram/` (`graph.ts` = graph.instagram.com, `zernio.ts`, `send.ts`, `ingest.ts`, `oauth.ts`, `connect.ts`, `maintenance.ts` = refresco de tokens) → webhook `/api/webhooks/ig/[token]` (token de organización O de instancia derivado de `INSTAGRAM_APP_SECRET`) |
+| Las reglas de cada canal (ventana, plantillas, límite de texto, adjuntos, acuses) | `src/server/channels/capabilities.ts` — el envío las CONSULTA; `src/lib/channels.ts` es el catálogo compartido con la UI |
 | Campos/tablas | `src/lib/db/schema.ts` → `pnpm db:generate` → migración nueva en `drizzle/` |
 | La ingesta/envío de mensajes | `src/server/inbox/` (ingest idempotente, send con guard de sandbox, ventana 24h) |
 | Cómo se identifica a un contacto | `src/server/inbox/identity.ts` (teléfono normalizado o `bsuid:<id>`) |
@@ -110,8 +112,18 @@ No corre E2E: eso es tuyo antes de declarar "Hecho".
 | UI | `src/components/` + `src/app/(app)/` |
 
 Los mocks del entorno de pruebas viven en `src/app/api/dev/` (wa-mock +
-ai-mock) tras un gate único (`src/lib/dev-guard.ts`): 404 incondicional en
-producción.
+ai-mock + ig-mock: Graph de Instagram, OAuth y Zernio) tras un gate único
+(`src/lib/dev-guard.ts`): 404 incondicional en producción.
+
+**Canal de contacto**: `contact.channel` y `conversation.channel`
+(`whatsapp`|`instagram`). El índice único de contacto es
+`(organization_id, channel, wa_identity)`: TODO `onConflictDoNothing` sobre
+`contact` debe nombrar las tres columnas (lo vigila
+`tests/unit/conflict-targets.test.ts`; olvidarlo rompe el Laboratorio y el
+alta manual en runtime, no en compilación). La identidad de Instagram es
+`ig:<IGSID>` en `wa_identity`. Instagram: 1000 bytes por mensaje (se parte
+solo), sin plantillas ni adjuntos salientes, `HUMAN_AGENT` solo para
+operadores humanos (el agente calla fuera de ventana), salientes nacen `sent`.
 
 **Identidad de contacto**: Meta está migrando de teléfono a Business-Scoped
 User IDs, así que `from` puede no venir. La llave estable es
@@ -129,13 +141,15 @@ funciona igual.
 
 Ver [.specify/memory/constitution.md](.specify/memory/constitution.md).
 
-- **Soberanía (II, enmendada 2.0.0)**: lista CERRADA de dependencias de
+- **Soberanía (II, enmendada 2.1.0)**: lista CERRADA de dependencias de
   runtime — Meta Graph API (WhatsApp; Instagram DM), proveedor LLM
-  OpenRouter-compatible opcional, y PSP de cobro (Stripe/MercadoPago) OPCIONAL
+  OpenRouter-compatible opcional, PSP de cobro (Stripe/MercadoPago) OPCIONAL
   solo en modo SaaS tras adaptador dedicado (datos de tarjeta jamás en la
-  instancia; sin PSP el producto está completo). PROHIBIDO todo lo no listado
-  (S3/R2, email, Google…). Binarios SIEMPRE en volumen persistente del
-  operador. Auth y BD self-hosted.
+  instancia; sin PSP el producto está completo), y Zernio OPCIONAL como
+  agregador SOLO para canales de Meta ya listados (Instagram DM), con
+  credencial por organización, tras adaptador, y sin abrir otros canales.
+  PROHIBIDO todo lo no listado (S3/R2, email, Google…). Binarios SIEMPRE en
+  volumen persistente del operador. Auth y BD self-hosted.
 - **Seguridad (I)**: secretos cifrados en reposo (AES-256-GCM, `lib/crypto`);
   jamás al cliente ni a logs. El token de WhatsApp solo muestra sus últimos 4.
 - **Multi-tenancy (III)**: `organization_id` NOT NULL en toda tabla de dominio;

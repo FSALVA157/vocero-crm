@@ -5,6 +5,9 @@ import { apiError, parseBody } from "@/lib/api";
 import { isBotAuth, requireBotAuth } from "@/server/bot/auth";
 import { getCredentialsByOrg } from "@/server/whatsapp/credentials";
 import { graphRequest } from "@/lib/meta/client";
+import { IG_IDENTITY_PREFIX } from "@/lib/channels";
+import { getInstagramCredentialsByOrg } from "@/server/instagram/credentials";
+import { sendInstagramSenderAction } from "@/server/instagram/send";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +49,31 @@ export async function POST(req: Request) {
     // Handoff/IA pausada: un humano atiende — "escribiendo…" aquí sería
     // mentirle al cliente. Se omite sin tocar Meta.
     return Response.json({ ok: false, reason: "ai_paused" });
+  }
+
+  // 010: Instagram tiene su propio "escribiendo…" (sender_action) y no
+  // necesita el id del último entrante; Zernio no lo expone (no-op).
+  if (conv.channel === "instagram") {
+    const igCreds = await getInstagramCredentialsByOrg(organizationId);
+    if (!igCreds) {
+      return apiError(409, "no_connection", "Instagram no está conectado");
+    }
+    const contacts = await db
+      .select({ identity: schema.contact.waIdentity })
+      .from(schema.contact)
+      .where(eq(schema.contact.id, conv.contactId))
+      .limit(1);
+    const identity = contacts[0]?.identity ?? "";
+    const recipient = identity.startsWith(IG_IDENTITY_PREFIX)
+      ? identity.slice(IG_IDENTITY_PREFIX.length)
+      : identity;
+    try {
+      const done = await sendInstagramSenderAction({ credentials: igCreds, recipient, action: "mark_seen" });
+      if (done) await sendInstagramSenderAction({ credentials: igCreds, recipient, action: "typing_on" });
+      return Response.json({ ok: done, ...(done ? {} : { reason: "unsupported" }) });
+    } catch {
+      return Response.json({ ok: false, reason: "meta_error" });
+    }
   }
 
   const msgs = await db

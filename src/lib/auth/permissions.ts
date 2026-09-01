@@ -35,6 +35,8 @@ export const PERMISSIONS = [
   "team.read",
   // Llaves de la organización — solo owner
   "settings.whatsapp.write",
+  // 010: la conexión de Instagram es una llave más de la organización.
+  "settings.instagram.write",
   "integrations.write",
   "team.write",
   "seed.demo",

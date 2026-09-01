@@ -1,6 +1,45 @@
 <!--
 SYNC IMPACT REPORT
 ==================
+Versión: 2.0.0 → 2.1.0
+
+Cambios:
+  - Principio II "Soberanía" → EXPANDIDO: la lista cerrada de dependencias de
+    runtime incorpora un cuarto elemento, **Zernio**, como agregador OPCIONAL
+    para conectar los canales de Meta ya listados (hoy: Instagram DM), bajo
+    cinco salvaguardas duras: (a) opcional — sin Zernio el canal funciona
+    completo por Meta directo, que es la vía principal; (b) tras adaptador
+    dedicado; (c) la credencial es de la organización (Principio III), nunca
+    de la instancia; (d) solo para canales que la lista YA permite — Zernio no
+    abre Telegram, X, Facebook ni ningún otro canal sin enmienda propia; (e)
+    tránsito por un tercero declarado al usuario en la UI antes de guardar.
+  - Restricciones de Plataforma → "Aislamiento de integraciones" nombra el
+    adaptador de Zernio.
+  - Principios I, III, IV, V, VI, VII, VIII, IX y Governance: íntegros.
+
+Bump: MINOR (2.0.0 → 2.1.0) — expansión material de un principio (una
+dependencia nueva en la lista cerrada) sin redefinir ni eliminar nada: una
+instancia sin Zernio cumple exactamente igual que antes.
+
+Motivación:
+  La feature 010 (canal de Instagram DM) ofrece dos vías de conexión. Meta
+  directo (Business Login for Instagram) es la principal y ya estaba cubierta
+  por 2.0.0, pero exige que el operador tenga una app de Meta con App Review
+  aprobado — un calendario externo de semanas. Zernio permite que un negocio
+  conecte Instagram en minutos pegando una sola clave, sin app propia ni
+  revisión, y por eso el responsable del proyecto decidió (2026-09-01)
+  incluirlo como puerta de entrada rápida. Entra como manda el Principio II:
+  por enmienda explícita, con salvaguardas escritas, y sin que el producto
+  dependa de él.
+
+Plantillas dependientes: revisadas — sin referencias a la lista de P-II; sin
+cambios necesarios. CLAUDE.md → actualizado en el mismo PR (resumen de
+Soberanía).
+-->
+
+<!--
+SYNC IMPACT REPORT
+==================
 Versión: 1.4.0 → 2.0.0
 
 Cambios:
@@ -204,6 +243,24 @@ dependencias externas en runtime es CERRADA — ampliarla exige enmienda:
        modo.
      - El consumo medido y lo cobrado deben poder **conciliarse**: lo que se
        factura sale de datos del dominio, auditables por tenant.
+  4. **Zernio**, OPCIONAL, como agregador para conectar canales de Meta que la
+     lista YA permite (hoy: Instagram DM), bajo cinco salvaguardas duras:
+     - **Opcional y secundario**: Meta directo es la vía principal; sin
+       Zernio, el canal funciona completo. Ninguna capacidad existe solo por
+       Zernio.
+     - Se accede tras un **adaptador dedicado** (transporte de Instagram
+       intercambiable: Meta directo o Zernio); el dominio no conoce a Zernio.
+     - **La credencial es de la organización** (Principio III): la API key
+       se guarda cifrada junto a ella; la instancia no tiene una clave de
+       Zernio.
+     - **No amplía la lista de canales**: Zernio da acceso a muchas
+       plataformas; aquí solo se usa para las que este principio ya lista.
+       Telegram, X, Facebook Messenger o cualquier otro exigen su propia
+       enmienda.
+     - **Tránsito declarado**: los mensajes pasan por un tercero, y la
+       interfaz lo dice de forma explícita antes de que la organización
+       guarde la conexión. Sus webhooks se validan por firma y se procesan de
+       forma idempotente (Principio IV).
 - **PROHIBIDO todo lo no listado**: almacenamiento de objetos externo (S3/R2),
   servicios de email, servicios de Google y cualquier otro. Cada necesidad
   nueva se resuelve con una enmienda explícita, nunca con un "ya que estamos".
@@ -412,7 +469,8 @@ Estas restricciones derivan de los Principios I y II y son verificables en revis
   de tenant; cualquier acceso que pueda omitirlo requiere justificación explícita.
 - **Aislamiento de integraciones**: las dependencias de APIs externas se acceden a
   través de adaptadores dedicados (cliente Graph API propio, adaptador LLM
-  OpenRouter-compatible), no dispersas por el dominio.
+  OpenRouter-compatible, adaptador de cobro, transporte de Zernio), no
+  dispersas por el dominio.
 - **Instancia pública endurecida**: las rutas de mock/desarrollo devuelven 404
   incondicional en producción; el registro público exige el código de invitación
   de la instancia (`SIGNUP_INVITE_CODE`) y queda cerrado si no se configuró; los
@@ -462,4 +520,4 @@ práctica, convención o preferencia; ante un conflicto, gana la constitución.
 - **Propagación**: al enmendar la constitución se revisan y, si procede, se actualizan
   las plantillas dependientes (plan, spec, tasks).
 
-**Version**: 2.0.0 | **Ratified**: 2026-07-09 | **Last Amended**: 2026-08-31
+**Version**: 2.1.0 | **Ratified**: 2026-07-09 | **Last Amended**: 2026-09-01

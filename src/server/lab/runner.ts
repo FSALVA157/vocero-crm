@@ -258,8 +258,14 @@ async function upsertTestContact(
       name: persona.contactName,
       archivedAt: new Date(),
     })
+    // 010: ídem que en el alta manual — el índice único incluye `channel`.
+    // Sin esto, TODA corrida del Laboratorio muere antes de la primera persona.
     .onConflictDoNothing({
-      target: [schema.contact.organizationId, schema.contact.waIdentity],
+      target: [
+        schema.contact.organizationId,
+        schema.contact.channel,
+        schema.contact.waIdentity,
+      ],
     })
     .returning();
   if (inserted[0]) return inserted[0].id;

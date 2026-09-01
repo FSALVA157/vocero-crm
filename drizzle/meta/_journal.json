@@ -85,6 +85,13 @@
       "when": 1788197202681,
       "tag": "0011_naive_madame_masque",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1788273074124,
+      "tag": "0012_powerful_mysterio",
+      "breakpoints": true
     }
   ]
 }

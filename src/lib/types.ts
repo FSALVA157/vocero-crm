@@ -1,8 +1,18 @@
 /** DTOs que viajan por la API interna (lado cliente). */
 
+import type { Channel } from "@/lib/channels";
+
 export type ConversationDto = {
   id: string;
-  contact: { id: string; name: string; phone: string | null };
+  /** 010: canal de la conversación, para el distintivo y el filtro. */
+  channel: Channel;
+  contact: {
+    id: string;
+    name: string;
+    phone: string | null;
+    /** 010: `@usuario` de Instagram (sin arroba); null en WhatsApp. */
+    handle: string | null;
+  };
   stageName: string | null;
   aiEnabled: boolean;
   handoffAt: string | null;
@@ -83,6 +93,9 @@ export type ContactDto = {
   name: string;
   /** null en contactos que llegaron solo con BSUID (003). */
   phone: string | null;
+  /** 010: canal por el que escribe y su `@usuario` si es Instagram. */
+  channel: Channel;
+  handle: string | null;
   notes: string | null;
   /** Etapa del embudo del lead asociado; null si el contacto no tiene lead. */
   stageName: string | null;

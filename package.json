@@ -1,6 +1,6 @@
 {
   "name": "vocero-crm",
-  "version": "3.5.0",
+  "version": "3.6.0",
   "description": "CRM de WhatsApp open source y self-hosted con agente de IA y Laboratorio de auto-evaluación",
   "license": "MIT",
   "type": "module",
@@ -20,6 +20,7 @@
     "test:e2e:cola": "node --env-file=.env scripts/e2e-cola-durable.mjs",
     "test:e2e:demo": "node --env-file=.env scripts/e2e-demo-y-suscripcion.mjs",
     "test:e2e:metricas": "node --env-file=.env scripts/e2e-metricas.mjs",
+    "test:e2e:instagram": "node --env-file=.env scripts/e2e-instagram.mjs",
     "test:watch": "vitest",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",

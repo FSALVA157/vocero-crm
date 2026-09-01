@@ -40,14 +40,20 @@ const BINARY_MEDIA_TYPES = new Set([
   "sticker",
 ] as const);
 
-type MediaInput = {
+export type MediaInput = {
+  /** 010: id ya reservado por quien descargó el archivo (Instagram). */
+  id?: string;
   kind: (typeof schema.mediaAsset.$inferSelect)["kind"];
   waMediaId: string | null;
   mimeType: string | null;
   fileName: string | null;
   caption: string | null;
   payload: unknown;
-  fetchStatus: "available" | "pending";
+  fetchStatus: "available" | "pending" | "failed";
+  /** 010: presentes cuando el binario ya está en el volumen (Instagram). */
+  storagePath?: string;
+  fileSize?: number;
+  fetchError?: string;
 };
 
 /**
@@ -113,7 +119,7 @@ async function attachMediaAsset(
     const inserted = await db
       .insert(schema.mediaAsset)
       .values({
-        id: newId("mediaAsset"),
+        id: media.id ?? newId("mediaAsset"),
         organizationId,
         kind: media.kind,
         waMediaId: media.waMediaId,
@@ -122,6 +128,9 @@ async function attachMediaAsset(
         caption: media.caption,
         payload: media.payload ?? null,
         fetchStatus: media.fetchStatus,
+        storagePath: media.storagePath ?? null,
+        fileSize: media.fileSize ?? null,
+        fetchError: media.fetchError ?? null,
       })
       .returning();
     const asset = inserted[0];
@@ -162,12 +171,19 @@ export async function getOrCreateContact(
 
 export async function getOrCreateConversation(
   organizationId: string,
-  contactId: string
+  contactId: string,
+  opts?: { channel?: "whatsapp" | "instagram"; threadRef?: string | null }
 ) {
   const db = getDb();
   const inserted = await db
     .insert(schema.conversation)
-    .values({ id: newId("conversation"), organizationId, contactId })
+    .values({
+      id: newId("conversation"),
+      organizationId,
+      contactId,
+      channel: opts?.channel ?? "whatsapp",
+      channelThreadRef: opts?.threadRef ?? null,
+    })
     .onConflictDoNothing()
     .returning();
   if (inserted[0]) return inserted[0];
@@ -185,6 +201,15 @@ export async function getOrCreateConversation(
     .limit(1);
   const existing = rows[0];
   if (!existing) throw new Error("conversación no encontrada tras upsert");
+  // 010: el hilo de la plataforma puede aparecer después (o cambiar); se
+  // guarda en cuanto se conoce para poder responder por Zernio.
+  if (opts?.threadRef && existing.channelThreadRef !== opts.threadRef) {
+    await db
+      .update(schema.conversation)
+      .set({ channelThreadRef: opts.threadRef, updatedAt: new Date() })
+      .where(eq(schema.conversation.id, existing.id));
+    existing.channelThreadRef = opts.threadRef;
+  }
   return existing;
 }
 
@@ -297,18 +322,41 @@ async function ingestManualEcho(
   organizationId: string,
   echo: WebhookMessage
 ): Promise<void> {
-  const db = getDb();
   const identity = normalizeMx(echo.to!);
-
-  const { contact } = await getOrCreateContactByIdentity(organizationId, {
-    identity,
-    phone: identity,
-    waUserId: null,
-    profileName: null,
+  await ingestManualOutbound({
+    organizationId,
+    identity: { identity, phone: identity, waUserId: null, profileName: null },
+    waMessageId: echo.id,
+    type: echo.type,
+    text: echo.text?.body ?? null,
+    timestamp: echo.timestamp,
+    media: mediaInputFrom(echo),
   });
-  const conversation = await getOrCreateConversation(organizationId, contact.id);
+}
 
-  const waTimestamp = toDate(echo.timestamp);
+/**
+ * Saliente que el dueño mandó A MANO desde la app del canal (echo). Común a
+ * WhatsApp (008) e Instagram (010): se registra `origin='manual'`, JAMÁS toca
+ * la ventana de 24 h ni dispara al agente, y pausa la IA (manual_reply).
+ */
+export async function ingestManualOutbound(input: {
+  organizationId: string;
+  identity: ResolvedIdentity;
+  waMessageId: string;
+  type: string;
+  text: string | null;
+  timestamp: string;
+  media?: MediaInput | null;
+}): Promise<void> {
+  const db = getDb();
+  const { organizationId } = input;
+
+  const { contact } = await getOrCreateContactByIdentity(organizationId, input.identity);
+  const conversation = await getOrCreateConversation(organizationId, contact.id, {
+    channel: contact.channel,
+  });
+
+  const waTimestamp = toDate(input.timestamp);
 
   // Idempotencia dura: los mensajes ya registrados (o echoes repetidos) no
   // duplican efectos — mismo wa_message_id → sin inserción ni handoff extra.
@@ -318,10 +366,10 @@ async function ingestManualEcho(
       id: newId("message"),
       organizationId,
       conversationId: conversation.id,
-      waMessageId: echo.id,
+      waMessageId: input.waMessageId,
       direction: "out",
-      type: echo.type,
-      text: echo.text?.body ?? null,
+      type: input.type,
+      text: input.text,
       status: "sent",
       origin: "manual",
       waTimestamp,
@@ -331,9 +379,8 @@ async function ingestManualEcho(
   const message = inserted[0];
   if (!message) return; // duplicado
 
-  const mediaInput = mediaInputFrom(echo);
-  const asset = mediaInput
-    ? await attachMediaAsset(organizationId, message.id, mediaInput)
+  const asset = input.media
+    ? await attachMediaAsset(organizationId, message.id, input.media)
     : null;
 
   // Solo lastMessageAt: un mensaje del negocio NUNCA abre la ventana de 24 h.
@@ -385,6 +432,8 @@ export async function ingestInboundMessage(input: {
   text: string | null;
   timestamp: string;
   media?: MediaInput | null;
+  /** 010: hilo en la plataforma de origen (Zernio); null en WhatsApp. */
+  threadRef?: string | null;
 }): Promise<void> {
   const db = getDb();
   const { organizationId } = input;
@@ -395,7 +444,8 @@ export async function ingestInboundMessage(input: {
   );
   const conversation = await getOrCreateConversation(
     organizationId,
-    contact.id
+    contact.id,
+    { channel: contact.channel, threadRef: input.threadRef ?? null }
   );
 
   const waTimestamp = toDate(input.timestamp);

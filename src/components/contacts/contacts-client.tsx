@@ -188,7 +188,11 @@ export function ContactsClient() {
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {formatPhone(c.phone)}
+                    {c.channel === "instagram"
+                      ? c.handle
+                        ? `@${c.handle} · Instagram`
+                        : "Instagram"
+                      : formatPhone(c.phone)}
                     {c.notes ? ` · ${c.notes.slice(0, 60)}` : ""}
                   </p>
                 </div>

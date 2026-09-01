@@ -99,7 +99,13 @@ export type MetricsOverview = {
   };
   bot: {
     messages: { in: number; outAi: number; outHuman: number; outTemplate: number };
-    conversations: { total: number; aiOnly: number; aiOnlyPct: number | null };
+    conversations: {
+      total: number;
+      aiOnly: number;
+      aiOnlyPct: number | null;
+      /** 010: desglose por canal del período (solo informativo si hay más de uno). */
+      byChannel: { channel: string; count: number }[];
+    };
     firstReply: {
       conversations: number;
       answered: number;
@@ -324,6 +330,15 @@ export async function getMetricsOverview(
       ${noDemo("c.contact_id")}`;
   const conv = convRows[0];
 
+  // 010: conversaciones del período por canal.
+  const byChannelRows = await sql<{ channel: string; count: string }[]>`
+    select c.channel, count(*) count
+    from conversation c
+    where c.organization_id = ${organizationId} and c.is_test = false
+      and c.last_inbound_at >= ${fromP} and c.last_inbound_at < ${toP}
+      ${noDemo("c.contact_id")}
+    group by 1 order by 2 desc`;
+
   // --- Bot: handoffs por motivo --------------------------------------------
   const handoffRows = await sql<{ reason: string; count: string }[]>`
     select coalesce(c.handoff_reason, 'otro') reason, count(*) count
@@ -475,6 +490,7 @@ export async function getMetricsOverview(
       },
       conversations: {
         total: convTotal,
+        byChannel: byChannelRows.map((r) => ({ channel: r.channel, count: num(r.count) })),
         aiOnly: num(conv?.ai_only),
         aiOnlyPct:
           convTotal > 0

@@ -10,6 +10,18 @@ import {
 } from "@/server/whatsapp/credentials";
 import { isWindowOpen } from "@/server/inbox/window";
 import { serializeMessage } from "@/server/inbox/ingest";
+import { IG_IDENTITY_PREFIX } from "@/lib/channels";
+import {
+  capabilitiesFor,
+  humanAgentTagAvailable,
+  splitForChannel,
+} from "@/server/channels/capabilities";
+import {
+  getInstagramCredentialsByOrg,
+  markInstagramReconnectRequired,
+  type InstagramCredentials,
+} from "@/server/instagram/credentials";
+import { sendInstagramText } from "@/server/instagram/send";
 import {
   saveMediaFile,
   uploadGraphMedia,
@@ -40,8 +52,11 @@ type SendResult = { messageId: string };
 
 type SendTarget = {
   conversation: typeof schema.conversation.$inferSelect;
-  credentials: Credentials;
+  /** null cuando el destino no es WhatsApp (010). */
+  credentials: Credentials | null;
   recipient: string;
+  /** 010: presente solo en conversaciones de Instagram. */
+  instagram?: InstagramCredentials;
 };
 
 /**
@@ -78,7 +93,41 @@ async function prepareSend(
     );
   }
 
-  if (!isWindowOpen(row.conversation.lastInboundAt)) {
+  // 010: el núcleo no decide la política de ventana, la consulta. WhatsApp
+  // exige plantilla fuera de ventana; Instagram deja que un HUMANO responda
+  // etiquetado hasta 7 días. La aserción de sandbox va ANTES de esta rama.
+  const channel = row.conversation.channel;
+  const windowOpen = isWindowOpen(row.conversation.lastInboundAt);
+
+  if (channel === "instagram") {
+    const igCreds = await getInstagramCredentialsByOrg(organizationId);
+    if (!igCreds) {
+      throw new SendError("not_connected", "No hay cuenta de Instagram conectada");
+    }
+    if (igCreds.status === "reconnect_required") {
+      throw new SendError(
+        "reconnect_required",
+        "La conexión de Instagram dejó de funcionar: reconecta la cuenta en Configuración → Instagram"
+      );
+    }
+    if (!windowOpen && !humanAgentTagAvailable("instagram", row.conversation.lastInboundAt)) {
+      throw new SendError(
+        "window_closed",
+        "Instagram no permite escribir pasados 7 días sin respuesta del cliente"
+      );
+    }
+    const igRecipient = row.contact.waIdentity.startsWith(IG_IDENTITY_PREFIX)
+      ? row.contact.waIdentity.slice(IG_IDENTITY_PREFIX.length)
+      : row.contact.waIdentity;
+    return {
+      conversation: row.conversation,
+      credentials: null,
+      recipient: igRecipient,
+      instagram: igCreds,
+    };
+  }
+
+  if (!windowOpen) {
     throw new SendError(
       "window_closed",
       "La ventana de 24 horas está cerrada; usa una plantilla aprobada"
@@ -117,7 +166,13 @@ async function persistOutbound(input: {
   waMessageId: string | null;
   type: string;
   text: string | null;
-  status: "pending" | "failed";
+  /**
+   * 010: 'sent' existe porque no todos los canales confirman por webhook.
+   * WhatsApp entra como 'pending' y avanza con los `statuses` de Meta;
+   * Instagram no manda ese evento, así que la aceptación de la plataforma ES
+   * la confirmación. Sin esto el mensaje se queda con el reloj para siempre.
+   */
+  status: "pending" | "sent" | "failed";
   error?: string | null;
   aiGenerated?: boolean;
   origin: "ai" | "operator";
@@ -167,12 +222,12 @@ export async function sendText(input: {
   text: string;
   aiGenerated?: boolean;
 }): Promise<SendResult> {
-  const { credentials, recipient } = await prepareSend(
-    input.conversationId,
-    input.organizationId
-  );
+  const target = await prepareSend(input.conversationId, input.organizationId);
+  const { credentials, recipient } = target;
 
-  const waMessageId = await callGraphSend(credentials, {
+  if (target.instagram) return sendInstagramTextParts(target, input);
+
+  const waMessageId = await callGraphSend(credentials!, {
     messaging_product: "whatsapp",
     to: recipient,
     type: "text",
@@ -194,6 +249,91 @@ export async function sendText(input: {
 }
 
 /**
+ * 010 — Texto por Instagram: se parte en fragmentos que quepan (1000 bytes)
+ * y cada uno es una fila `message` que nace `sent` (sin acuses por webhook).
+ * Fuera de la ventana de 24 h solo un HUMANO puede escribir, y sale
+ * etiquetado `HUMAN_AGENT` sin que tenga que hacer nada; el agente jamás.
+ */
+async function sendInstagramTextParts(
+  target: SendTarget,
+  input: { conversationId: string; organizationId: string; text: string; aiGenerated?: boolean }
+): Promise<SendResult> {
+  const creds = target.instagram!;
+  const windowOpen = isWindowOpen(target.conversation.lastInboundAt);
+  if (!windowOpen && input.aiGenerated) {
+    throw new SendError(
+      "window_closed",
+      "La ventana de 24 horas está cerrada: el agente no puede escribir por Instagram"
+    );
+  }
+  const humanAgentTag = !windowOpen;
+  const parts = splitForChannel("instagram", input.text);
+  if (parts.length === 0) {
+    throw new SendError("meta_error", "El mensaje está vacío");
+  }
+
+  let lastId = "";
+  for (const part of parts) {
+    let platformMessageId: string;
+    try {
+      const res = await sendInstagramText({
+        credentials: creds,
+        conversation: target.conversation,
+        recipient: target.recipient,
+        text: part,
+        humanAgentTag,
+      });
+      platformMessageId = res.platformMessageId;
+    } catch (err) {
+      throw await translateInstagramError(err, creds);
+    }
+    lastId = await persistOutbound({
+      organizationId: input.organizationId,
+      conversationId: input.conversationId,
+      waMessageId: `ig_${platformMessageId}`,
+      type: "text",
+      text: part,
+      status: capabilitiesFor("instagram").deliveryReceipts ? "pending" : "sent",
+      aiGenerated: input.aiGenerated,
+      origin: input.aiGenerated ? "ai" : "operator",
+    });
+  }
+  return { messageId: lastId };
+}
+
+/** Traduce los fallos de Instagram/Zernio al vocabulario de SendError. */
+async function translateInstagramError(
+  err: unknown,
+  creds: InstagramCredentials
+): Promise<Error> {
+  if (err instanceof SendError) return err;
+  if (err instanceof MetaApiError) {
+    if (err.isAuthError) {
+      await markInstagramReconnectRequired(
+        creds.organizationId,
+        creds.source === "zernio"
+          ? "Zernio rechazó la API key: vuelve a conectar"
+          : "Instagram rechazó el token (caducado o revocado): reconecta la cuenta"
+      );
+      return new SendError(
+        "reconnect_required",
+        creds.source === "zernio"
+          ? "La API key de Zernio dejó de funcionar: reconecta en Configuración → Instagram"
+          : "El token de Instagram caducó o fue revocado: reconecta la cuenta en Configuración → Instagram"
+      );
+    }
+    if (err.status === 0 || err.status >= 500) {
+      return new SendError(
+        "meta_unavailable",
+        `${creds.source === "zernio" ? "Zernio" : "Instagram"} no está disponible en este momento; intenta de nuevo`
+      );
+    }
+    return new SendError("meta_error", err.message);
+  }
+  return err instanceof Error ? err : new Error(String(err));
+}
+
+/**
  * 008 — Envía un adjunto de archivo (imagen/video/audio/documento).
  * El archivo queda ANTES en el volumen local (fuente durable de la preview);
  * si Graph falla tras eso, el mensaje se persiste `failed` (visible en el
@@ -208,10 +348,16 @@ export async function sendMediaMessage(input: {
   // Validación previa (FR-007): tipo y tamaño antes de tocar disco o red.
   const kind = validateOutgoing(input.file.mimeType, input.file.data.byteLength);
 
-  const { credentials, recipient } = await prepareSend(
-    input.conversationId,
-    input.organizationId
-  );
+  const target = await prepareSend(input.conversationId, input.organizationId);
+  const { recipient } = target;
+  const sendCaps = capabilitiesFor(target.conversation.channel);
+  if (!sendCaps.outboundMedia || !target.credentials) {
+    throw new SendError(
+      "meta_error",
+      `Todavía no se pueden enviar adjuntos por ${sendCaps.label}; manda el texto`
+    );
+  }
+  const credentials = target.credentials;
 
   const db = getDb();
   const assetId = newId("mediaAsset");
@@ -320,10 +466,16 @@ export async function sendStructured(
     | { kind: "contacts"; contacts: ContactInput[] }
   )
 ): Promise<SendResult> {
-  const { credentials, recipient } = await prepareSend(
-    input.conversationId,
-    input.organizationId
-  );
+  const target = await prepareSend(input.conversationId, input.organizationId);
+  const { recipient } = target;
+  const structuredCaps = capabilitiesFor(target.conversation.channel);
+  if (!structuredCaps.outboundMedia || !target.credentials) {
+    throw new SendError(
+      "meta_error",
+      `Todavía no se pueden enviar ubicaciones ni contactos por ${structuredCaps.label}`
+    );
+  }
+  const credentials = target.credentials;
 
   const payload =
     input.kind === "location"
