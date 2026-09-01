@@ -134,16 +134,20 @@ export async function createWebhook(input: {
   secret: string;
   events?: string[];
 }): Promise<{ id: string }> {
+  // Ruta real de Zernio (docs: "Create webhook settings"): POST /webhooks/settings
+  // con name/url/events/secret/isActive; devuelve { webhook: { _id } }.
+  // Un POST /webhooks a secas responde "No such API endpoint" (visto en producción).
   const res = await request<{ _id?: string; id?: string; webhook?: { _id?: string; id?: string } }>(
-    "/webhooks",
+    "/webhooks/settings",
     {
       method: "POST",
       apiKey: input.apiKey,
       body: JSON.stringify({
+        name: "Vocero CRM",
         url: input.url,
         secret: input.secret,
         events: input.events ?? ["message.received"],
-        active: true,
+        isActive: true,
       }),
     }
   );
@@ -153,7 +157,7 @@ export async function createWebhook(input: {
 }
 
 export async function deleteWebhook(apiKey: string, webhookId: string): Promise<void> {
-  await request(`/webhooks/${encodeURIComponent(webhookId)}`, { method: "DELETE", apiKey });
+  await request(`/webhooks/settings/${encodeURIComponent(webhookId)}`, { method: "DELETE", apiKey });
 }
 
 /* ---------- Bandeja ---------- */

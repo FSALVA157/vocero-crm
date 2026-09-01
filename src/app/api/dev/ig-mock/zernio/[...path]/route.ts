@@ -72,7 +72,10 @@ export async function POST(req: Request, ctx: Params) {
   if (!s.zernioAccounts[k] || s.revoked.includes(k)) return unauthorized();
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
 
-  if (path[0] === "webhooks") {
+  if (path[0] === "webhooks" && path[1] === "settings") {
+    if (!body.name || !body.url || !Array.isArray(body.events)) {
+      return Response.json({ error: { message: "name, url and events are required" } }, { status: 400 });
+    }
     const id = `zwh_${nextIgN()}`;
     (s.zernioWebhooks[k] ??= []).push({
       id,
@@ -80,7 +83,7 @@ export async function POST(req: Request, ctx: Params) {
       secret: String(body.secret ?? ""),
       events: Array.isArray(body.events) ? (body.events as string[]) : [],
     });
-    return Response.json({ _id: id, url: body.url, events: body.events });
+    return Response.json({ webhook: { _id: id, name: body.name, url: body.url, events: body.events, isActive: true } });
   }
   if (path[0] === "inbox" && path[1] === "conversations" && path[3] === "messages") {
     const conversationId = path[2]!;
@@ -108,8 +111,8 @@ export async function DELETE(req: Request, ctx: Params) {
   const s = getIgMockState();
   const k = key(req);
   if (!s.zernioAccounts[k]) return unauthorized();
-  if (path[0] === "webhooks" && path[1]) {
-    s.zernioWebhooks[k] = (s.zernioWebhooks[k] ?? []).filter((w) => w.id !== path[1]);
+  if (path[0] === "webhooks" && path[1] === "settings" && path[2]) {
+    s.zernioWebhooks[k] = (s.zernioWebhooks[k] ?? []).filter((w) => w.id !== path[2]);
   }
   return Response.json({ ok: true });
 }
