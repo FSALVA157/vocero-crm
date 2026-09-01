@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ModelCombobox, type ModelOption } from "@/components/ui/model-combobox";
 
 type Config = {
   configured: boolean;
@@ -16,8 +17,17 @@ type Config = {
 
 type Aviso = { tipo: "ok" | "error"; texto: string };
 
+type Catalogo = { models: ModelOption[]; suggested: string[]; error?: string };
+
 const MODELO_SUGERIDO = "anthropic/claude-sonnet-4.5";
 const JUEZ_SUGERIDO = "anthropic/claude-haiku-4.5";
+
+/** Aviso solo cuando HAY catálogo y el valor no figura: sin catálogo no hay criterio. */
+function fueraDeCatalogo(valor: string, catalogo: Catalogo | null): boolean {
+  const v = valor.trim();
+  if (!v || !catalogo || catalogo.models.length === 0) return false;
+  return !catalogo.models.some((m) => m.id === v);
+}
 
 export function AiClient() {
   const [config, setConfig] = useState<Config | null>(null);
@@ -27,6 +37,7 @@ export function AiClient() {
   const [aviso, setAviso] = useState<Aviso | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [probando, setProbando] = useState(false);
+  const [catalogo, setCatalogo] = useState<Catalogo | null>(null);
 
   const refetch = useCallback(async () => {
     const res = await fetch("/api/settings/ai").catch(() => null);
@@ -36,6 +47,21 @@ export function AiClient() {
     setModel(data.model ?? MODELO_SUGERIDO);
     setJudgeModel(data.judgeModel ?? "");
   }, []);
+
+  // 009: el catálogo se pide aparte y nunca bloquea la pantalla — si falla,
+  // los campos siguen aceptando texto libre.
+  const cargarCatalogo = useCallback(async () => {
+    const res = await fetch("/api/settings/ai/models").catch(() => null);
+    if (!res?.ok) {
+      setCatalogo({ models: [], suggested: [], error: "No se pudo pedir el catálogo" });
+      return;
+    }
+    setCatalogo((await res.json()) as Catalogo);
+  }, []);
+
+  useEffect(() => {
+    void cargarCatalogo();
+  }, [cargarCatalogo]);
 
   useEffect(() => {
     void refetch();
@@ -68,6 +94,8 @@ export function AiClient() {
     setToken("");
     setAviso({ tipo: "ok", texto: "Configuración guardada" });
     void refetch();
+    // Con clave nueva el proveedor puede devolver otro catálogo.
+    void cargarCatalogo();
   }
 
   async function probar() {
@@ -154,26 +182,50 @@ export function AiClient() {
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="ai-model">Modelo del agente</Label>
-              <Input
+              <ModelCombobox
                 id="ai-model"
                 value={model}
-                onChange={(e) => setModel(e.target.value)}
+                onChange={setModel}
+                options={catalogo?.models ?? []}
+                suggested={catalogo?.suggested ?? []}
                 placeholder={MODELO_SUGERIDO}
               />
+              {fueraDeCatalogo(model, catalogo) && (
+                <p className="text-xs text-warning-text">
+                  No aparece en el catálogo del proveedor. Se guarda igual; usa
+                  «Probar conexión» para confirmar que existe.
+                </p>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="ai-judge">Modelo del juez (opcional)</Label>
-              <Input
+              <ModelCombobox
                 id="ai-judge"
                 value={judgeModel}
-                onChange={(e) => setJudgeModel(e.target.value)}
+                onChange={setJudgeModel}
+                options={catalogo?.models ?? []}
+                suggested={catalogo?.suggested ?? []}
                 placeholder={JUEZ_SUGERIDO}
+                emptyLabel="Usar el del agente"
               />
               <p className="text-xs text-muted-foreground">
                 Lo usa el Laboratorio. Si lo dejas vacío, usa el del agente.
               </p>
+              {fueraDeCatalogo(judgeModel, catalogo) && (
+                <p className="text-xs text-warning-text">
+                  No aparece en el catálogo del proveedor.
+                </p>
+              )}
             </div>
           </div>
+
+          <p className="text-xs text-muted-foreground">
+            {catalogo === null
+              ? "Cargando el catálogo de modelos…"
+              : catalogo.models.length > 0
+                ? `Catálogo del proveedor: ${catalogo.models.length} modelos de texto (precio en USD por millón de tokens, entrada / salida). También puedes escribir un ID a mano.`
+                : `Catálogo no disponible${catalogo.error ? ` (${catalogo.error})` : ""}: escribe el ID del modelo a mano, p. ej. ${MODELO_SUGERIDO}.`}
+          </p>
 
           {aviso && (
             <p

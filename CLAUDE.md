@@ -94,6 +94,8 @@ No corre E2E: eso es tuyo antes de declarar "Hecho".
 | Conectar TU propio bot en vez del agente | `src/app/api/bot/*` + `src/server/bot/auth.ts` (X-API-Key) |
 | Quién puede hacer qué (roles) | `src/lib/auth/permissions.ts` (matriz) → cada ruta la declara con `withAuth(h, { permission })` |
 | La clave/modelo de IA de una organización | `src/server/ai/config.ts` (cifrada) → `chatJson(schema, msgs, { organizationId })` |
+| El catálogo de modelos del selector (filtro, sugeridos, cache) | `src/server/ai/models.ts` → `GET /api/settings/ai/models` (siempre 200; sin catálogo la UI degrada a texto libre) |
+| La base de conocimiento del agente (alta/edición/borrado) | `/api/kb` + `src/server/kb/patch.ts` (PATCH validado por `kind`) · UI en `src/components/agent/agent-client.tsx` |
 | La clave del bot externo | `src/server/bot/keys.ts` (hash) → `requireBotAuth(req)` devuelve la organización |
 | El token del webhook de una organización | `src/server/org/webhook-token.ts` |
 | Suscribir el webhook en Meta (nivel app + override por WABA) | `src/server/whatsapp/subscription.ts` → `POST /api/settings/whatsapp/subscribe` (botón, NO en Guardar: pisa el callback de toda la app) |

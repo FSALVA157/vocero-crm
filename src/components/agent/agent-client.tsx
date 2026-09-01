@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Plus, Sparkles, Trash2 } from "lucide-react";
+import { Check, Pencil, Plus, Sparkles, Trash2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -230,6 +230,7 @@ function KbSection({
   }
 
   async function remove(id: string) {
+    if (!confirm("¿Eliminar esta entrada? El agente dejará de saberla.")) return;
     await fetch(`/api/kb/${id}`, { method: "DELETE" }).catch(() => null);
     onChanged();
   }
@@ -296,26 +297,7 @@ function KbSection({
 
         <ul className="space-y-2">
           {entries.map((e) => (
-            <li key={e.id} className="flex items-start gap-2 rounded-md border p-3">
-              <div className="min-w-0 flex-1 text-sm">
-                {e.kind === "qa" ? (
-                  <>
-                    <p className="font-medium">{e.question}</p>
-                    <p className="mt-0.5 text-muted-foreground">{e.answer}</p>
-                  </>
-                ) : (
-                  <p className="whitespace-pre-wrap text-muted-foreground">{e.content}</p>
-                )}
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="Eliminar entrada"
-                onClick={() => void remove(e.id)}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </li>
+            <KbRow key={e.id} entry={e} onChanged={onChanged} onRemove={() => void remove(e.id)} />
           ))}
           {entries.length === 0 && (
             <p className="py-2 text-center text-xs text-muted-foreground">
@@ -325,5 +307,142 @@ function KbSection({
         </ul>
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * Una entrada de la KB con edición inline (009, US2): "Editar" convierte la
+ * fila en los mismos campos del alta; Guardar hace PATCH, Cancelar/Escape
+ * descarta. Ya no hace falta borrar y volver a crear para corregir un texto.
+ */
+function KbRow({
+  entry,
+  onChanged,
+  onRemove,
+}: {
+  entry: KbEntry;
+  onChanged: () => void;
+  onRemove: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [question, setQuestion] = useState(entry.question ?? "");
+  const [answer, setAnswer] = useState(entry.answer ?? "");
+  const [content, setContent] = useState(entry.content ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function start() {
+    setQuestion(entry.question ?? "");
+    setAnswer(entry.answer ?? "");
+    setContent(entry.content ?? "");
+    setError(null);
+    setEditing(true);
+  }
+
+  function cancel() {
+    setEditing(false);
+    setError(null);
+  }
+
+  const valid =
+    entry.kind === "qa"
+      ? question.trim().length > 0 && answer.trim().length > 0
+      : content.trim().length > 0;
+
+  async function save() {
+    if (!valid) return;
+    setSaving(true);
+    setError(null);
+    const body =
+      entry.kind === "qa"
+        ? { question: question.trim(), answer: answer.trim() }
+        : { content: content.trim() };
+    const res = await fetch(`/api/kb/${entry.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    }).catch(() => null);
+    setSaving(false);
+    if (!res?.ok) {
+      const data = (await res?.json().catch(() => null)) as {
+        error?: { message?: string };
+      } | null;
+      setError(data?.error?.message ?? "No se pudo guardar");
+      return;
+    }
+    setEditing(false);
+    onChanged();
+  }
+
+  function onKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      cancel();
+    }
+  }
+
+  if (editing) {
+    return (
+      <li
+        className="space-y-2 rounded-md border border-foreground/30 p-3"
+        onKeyDown={onKeyDown}
+        data-testid="kb-row-editing"
+      >
+        {entry.kind === "qa" ? (
+          <>
+            <Input
+              aria-label="Pregunta"
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+              autoFocus
+            />
+            <Textarea
+              aria-label="Respuesta"
+              rows={2}
+              value={answer}
+              onChange={(e) => setAnswer(e.target.value)}
+            />
+          </>
+        ) : (
+          <Textarea
+            aria-label="Contenido"
+            rows={3}
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            autoFocus
+          />
+        )}
+        {error && <p className="text-xs text-destructive">{error}</p>}
+        <div className="flex gap-2">
+          <Button size="sm" disabled={!valid || saving} onClick={() => void save()}>
+            <Check className="h-4 w-4" /> {saving ? "Guardando…" : "Guardar"}
+          </Button>
+          <Button size="sm" variant="outline" disabled={saving} onClick={cancel}>
+            <X className="h-4 w-4" /> Cancelar
+          </Button>
+        </div>
+      </li>
+    );
+  }
+
+  return (
+    <li className="flex items-start gap-2 rounded-md border p-3">
+      <div className="min-w-0 flex-1 text-sm">
+        {entry.kind === "qa" ? (
+          <>
+            <p className="font-medium">{entry.question}</p>
+            <p className="mt-0.5 whitespace-pre-wrap text-muted-foreground">{entry.answer}</p>
+          </>
+        ) : (
+          <p className="whitespace-pre-wrap text-muted-foreground">{entry.content}</p>
+        )}
+      </div>
+      <Button variant="ghost" size="icon" aria-label="Editar entrada" onClick={start}>
+        <Pencil className="h-4 w-4" />
+      </Button>
+      <Button variant="ghost" size="icon" aria-label="Eliminar entrada" onClick={onRemove}>
+        <Trash2 className="h-4 w-4" />
+      </Button>
+    </li>
   );
 }
