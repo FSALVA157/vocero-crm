@@ -178,7 +178,22 @@ export function ContactPanel({
                 {conversation.contact.name}
               </p>
               <p className="text-xs text-text-3">
-                {formatPhone(conversation.contact.phone)}
+                {conversation.channel === "instagram" ? (
+                  conversation.contact.handle ? (
+                    <a
+                      href={`https://instagram.com/${conversation.contact.handle}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="hover:text-brand-text hover:underline"
+                    >
+                      @{conversation.contact.handle} · Instagram
+                    </a>
+                  ) : (
+                    "Instagram"
+                  )
+                ) : (
+                  formatPhone(conversation.contact.phone)
+                )}
               </p>
             </div>
           </div>

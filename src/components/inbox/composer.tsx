@@ -15,6 +15,11 @@ import { cn } from "@/lib/utils";
 import { formatBytes, formatRemaining } from "./helpers";
 import { TemplateSender } from "./template-sender";
 
+/** 010 — Instagram corta en 1000 BYTES (acentos y emojis pesan más de 1). */
+const IG_MAX_BYTES = 1000;
+const HUMAN_AGENT_WINDOW_MS = 7 * 24 * 3600 * 1000;
+const utf8Bytes = (s: string) => new TextEncoder().encode(s).length;
+
 /** 008 — Panel secundario del clip: formulario de ubicación o contacto. */
 type AttachPanel = "location" | "contact" | null;
 
@@ -54,8 +59,20 @@ export function Composer({
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // 010: reglas del canal en el compositor. Instagram: sin plantillas, sin
+  // adjuntos salientes, 1000 bytes por mensaje y etiqueta de agente humano
+  // hasta 7 días desde el último mensaje del cliente.
+  const isInstagram = conversation.channel === "instagram";
+  const sinceInbound = conversation.lastInboundAt
+    ? Date.now() - Date.parse(conversation.lastInboundAt)
+    : Number.POSITIVE_INFINITY;
+  const humanAgentAvailable = isInstagram && !conversation.windowOpen && sinceInbound < HUMAN_AGENT_WINDOW_MS;
+  const textBytes = isInstagram ? utf8Bytes(text) : 0;
+  const igParts = isInstagram && textBytes > IG_MAX_BYTES ? Math.ceil(textBytes / IG_MAX_BYTES) : 1;
+
   useEffect(() => {
     let cancelled = false;
+    if (isInstagram) return; // 010: Instagram no tiene plantillas
     fetch("/api/templates")
       .then((r) => (r.ok ? r.json() : { templates: [] }))
       .then((d: { templates?: TemplateDto[] }) => {
@@ -66,7 +83,7 @@ export function Composer({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [isInstagram]);
 
   // La URL del preview de imagen se libera al reemplazar/limpiar el archivo.
   useEffect(() => {
@@ -197,7 +214,23 @@ export function Composer({
     onSent();
   }
 
-  if (!conversation.windowOpen) {
+  if (!conversation.windowOpen && isInstagram && !humanAgentAvailable) {
+    return (
+      <div className="border-t bg-background px-[18px] py-3.5" data-testid="ig-window-expired">
+        <div className="flex items-start gap-2 rounded-md border border-warning-soft bg-warning-tint p-3 text-sm text-warning-text">
+          <Clock3 className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={1.7} />
+          <div>
+            <p className="font-medium">Instagram no permite escribir pasados 7 días sin respuesta del cliente.</p>
+            <p className="opacity-80">
+              La conversación se reabre sola cuando la persona vuelva a escribirte por Instagram.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!conversation.windowOpen && !isInstagram) {
     return (
       <div className="border-t bg-background px-[18px] py-3.5">
         <div className="mb-3 flex items-start gap-2 rounded-md border border-warning-soft bg-warning-tint p-3 text-sm text-warning-text">
@@ -220,6 +253,14 @@ export function Composer({
 
   return (
     <div className="border-t bg-background px-[18px] pb-3.5 pt-3">
+      {humanAgentAvailable && (
+        <div className="mb-2.5 flex items-start gap-2 rounded-md border border-warning-soft bg-warning-tint p-2.5 text-xs text-warning-text" data-testid="ig-human-agent-notice">
+          <Clock3 className="mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={1.7} />
+          <p>
+            Fuera de la ventana de 24 h: tu respuesta se envía como <strong>respuesta de agente humano</strong> (Instagram lo permite hasta 7 días). El agente de IA no responde en este estado.
+          </p>
+        </div>
+      )}
       {templates.length > 0 && !file && panel === null && (
         <div className="mb-2.5 flex flex-wrap gap-1.5">
           {templates.slice(0, 4).map((t) => (
@@ -353,33 +394,39 @@ export function Composer({
           <button
             onClick={() => fileRef.current?.click()}
             aria-label="Adjuntar archivo"
-            title="Adjuntar imagen, video, audio o documento"
-            className="rounded p-1.5 text-text-3 transition-colors hover:bg-secondary hover:text-text-1"
+            title={isInstagram ? "Todavía no se pueden enviar adjuntos por Instagram" : "Adjuntar imagen, video, audio o documento"}
+            disabled={isInstagram}
+            data-testid="composer-attach"
+            className="rounded p-1.5 text-text-3 transition-colors hover:bg-secondary hover:text-text-1 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
           >
             <Paperclip className="h-[18px] w-[18px]" strokeWidth={1.7} />
           </button>
-          <button
-            onClick={() => setPanel(panel === "location" ? null : "location")}
-            aria-label="Enviar ubicación"
-            title="Enviar ubicación"
-            className={cn(
-              "rounded p-1.5 text-text-3 transition-colors hover:bg-secondary hover:text-text-1",
-              panel === "location" && "bg-secondary text-brand"
-            )}
-          >
-            <MapPin className="h-[18px] w-[18px]" strokeWidth={1.7} />
-          </button>
-          <button
-            onClick={() => setPanel(panel === "contact" ? null : "contact")}
-            aria-label="Compartir contacto"
-            title="Compartir contacto"
-            className={cn(
-              "rounded p-1.5 text-text-3 transition-colors hover:bg-secondary hover:text-text-1",
-              panel === "contact" && "bg-secondary text-brand"
-            )}
-          >
-            <UserRound className="h-[18px] w-[18px]" strokeWidth={1.7} />
-          </button>
+          {!isInstagram && (
+            <>
+              <button
+                onClick={() => setPanel(panel === "location" ? null : "location")}
+                aria-label="Enviar ubicación"
+                title="Enviar ubicación"
+                className={cn(
+                  "rounded p-1.5 text-text-3 transition-colors hover:bg-secondary hover:text-text-1",
+                  panel === "location" && "bg-secondary text-brand"
+                )}
+              >
+                <MapPin className="h-[18px] w-[18px]" strokeWidth={1.7} />
+              </button>
+              <button
+                onClick={() => setPanel(panel === "contact" ? null : "contact")}
+                aria-label="Compartir contacto"
+                title="Compartir contacto"
+                className={cn(
+                  "rounded p-1.5 text-text-3 transition-colors hover:bg-secondary hover:text-text-1",
+                  panel === "contact" && "bg-secondary text-brand"
+                )}
+              >
+                <UserRound className="h-[18px] w-[18px]" strokeWidth={1.7} />
+              </button>
+            </>
+          )}
         </div>
         <textarea
           ref={taRef}
@@ -412,8 +459,16 @@ export function Composer({
       </div>
       <div className="mt-1.5 flex items-center justify-between">
         {error ? <p className="text-xs text-destructive">{error}</p> : <span />}
-        <p className="text-[11px] text-text-3">
-          Ventana abierta · quedan {formatRemaining(conversation.windowRemainingMs)}
+        <p className="text-[11px] text-text-3" data-testid="composer-footer">
+          {isInstagram && text.length > 0 && (
+            <span className={cn("mr-2", textBytes > IG_MAX_BYTES && "text-warning-text")} data-testid="ig-byte-counter">
+              {textBytes}/{IG_MAX_BYTES}
+              {igParts > 1 ? ` · se enviará en ${igParts} mensajes` : ""}
+            </span>
+          )}
+          {conversation.windowOpen
+            ? `Ventana abierta · quedan ${formatRemaining(conversation.windowRemainingMs)}`
+            : "Respuesta de agente humano"}
         </p>
       </div>
     </div>

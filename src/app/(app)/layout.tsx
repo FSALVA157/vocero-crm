@@ -6,6 +6,8 @@ import { normalizeThemePreference, THEME_COOKIE } from "@/lib/theme";
 import { getBranding } from "@/server/branding";
 import { AppShell } from "@/components/app-shell";
 import { resolveBuildCommit } from "@/lib/version";
+import { can } from "@/lib/auth/permissions";
+import { getInstagramCredentialsByOrg } from "@/server/instagram/credentials";
 
 export default async function AppLayout({
   children,
@@ -22,6 +24,18 @@ export default async function AppLayout({
   const theme = normalizeThemePreference(
     (await cookies()).get(THEME_COOKIE)?.value
   );
+  // 010: aviso global cuando una conexión de canal se rompió. Solo para
+  // quien puede arreglarlo (owner/admin ven Configuración).
+  let channelAlert: { channel: "instagram"; message: string } | null = null;
+  if (can(session.role, "settings.read")) {
+    const ig = await getInstagramCredentialsByOrg(session.organizationId).catch(() => null);
+    if (ig?.status === "reconnect_required") {
+      channelAlert = {
+        channel: "instagram",
+        message: ig.lastError ?? "El token de Instagram caducó o fue revocado.",
+      };
+    }
+  }
 
   return (
     <AppShell
@@ -31,6 +45,7 @@ export default async function AppLayout({
       theme={theme}
       // Se resuelve aquí, en el servidor: el cliente no ve `SOURCE_COMMIT`.
       commit={resolveBuildCommit()}
+      channelAlert={channelAlert}
     >
       {children}
     </AppShell>

@@ -29,6 +29,23 @@ const envSchema = z.object({
   META_APP_SECRET: z.string().optional(),
   META_GRAPH_API_VERSION: z.string().default("v25.0"),
   META_GRAPH_BASE_URL: z.string().url().default("https://graph.facebook.com"),
+  /**
+   * 010 — App de Meta del OPERADOR de la instancia para el "Conectar con
+   * Instagram" (Business Login). Secreto del negocio del operador, no de un
+   * tenant (Constitución III). Sin ambas, el botón OAuth no existe y quedan
+   * Zernio y el modo avanzado (token pegado).
+   */
+  INSTAGRAM_APP_ID: z.string().optional(),
+  INSTAGRAM_APP_SECRET: z.string().optional(),
+  /** 010 — Hosts de Instagram; en pruebas apuntan al ig-mock. */
+  IG_GRAPH_BASE_URL: z.string().url().default("https://graph.instagram.com"),
+  IG_OAUTH_BASE_URL: z.string().url().default("https://api.instagram.com"),
+  IG_OAUTH_AUTHORIZE_URL: z
+    .string()
+    .url()
+    .default("https://www.instagram.com/oauth/authorize"),
+  /** 010 — Zernio (agregador opcional, enmienda 2.1.0); en pruebas, el ig-mock. */
+  ZERNIO_BASE_URL: z.string().url().default("https://zernio.com/api/v1"),
   /** DEPRECADAS (005): la configuración de IA es por organización (org_ai_config). */
   OPENROUTER_API_TOKEN: z.string().optional(),
   OPENROUTER_MODEL: z.string().optional(),

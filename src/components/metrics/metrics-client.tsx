@@ -465,7 +465,13 @@ export function MetricsClient() {
             <Tile
               label="Conversaciones del período"
               value={String(bot.conversations.total)}
-              sub={`${bot.messages.in} mensajes recibidos`}
+              sub={
+                (bot.conversations.byChannel ?? []).length > 1
+                  ? bot.conversations.byChannel
+                      .map((c) => `${c.count} ${c.channel === "instagram" ? "Instagram" : "WhatsApp"}`)
+                      .join(" · ")
+                  : `${bot.messages.in} mensajes recibidos`
+              }
               testid="tile-convs"
             />
           </div>

@@ -1,6 +1,7 @@
 import { getEnv, type Env } from "@/lib/env";
 import { startEventBridge } from "@/server/events/bus";
 import { startAgentConsumer, type AgentConsumer } from "@/server/jobs/agent-consumer";
+import { startInstagramMaintenance } from "@/server/instagram/maintenance";
 
 /**
  * 006 — Qué trabajo en segundo plano levanta cada rol de proceso.
@@ -39,8 +40,12 @@ export function startBackground(): BackgroundState {
   globalForBg.__voceroBackground = state;
 
   if (plan.bridge) startEventBridge();
-  if (plan.consume) state.consumer = startAgentConsumer();
-  else console.log(`[boot] ROLE=${env.ROLE}: este proceso NO consume la cola del agente`);
+  if (plan.consume) {
+    state.consumer = startAgentConsumer();
+    // 010: el refresco de tokens de Instagram va con quien consume: un
+    // proceso de solo-servir no debería hacer tareas periódicas.
+    startInstagramMaintenance();
+  } else console.log(`[boot] ROLE=${env.ROLE}: este proceso NO consume la cola del agente`);
 
   return state;
 }

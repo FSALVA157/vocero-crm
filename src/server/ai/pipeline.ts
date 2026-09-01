@@ -88,7 +88,12 @@ export async function runAgentTurn(conversationId: string): Promise<void> {
   const messages: ChatMessage[] = [
     {
       role: "system",
-      content: buildAgentSystemPrompt({ profile, kb, stages }),
+      content: buildAgentSystemPrompt({
+        profile,
+        kb,
+        stages,
+        channel: conversation.channel,
+      }),
     },
     ...history
       .filter((m) => m.text)

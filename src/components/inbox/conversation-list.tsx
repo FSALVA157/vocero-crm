@@ -10,6 +10,8 @@ import { usePuede } from "@/components/role-context";
 import { Button } from "@/components/ui/button";
 import { DemoSeedConfirm } from "@/components/demo/demo-data-panel";
 import { formatTime, previewText } from "./helpers";
+import { CHANNEL_LABEL, type Channel } from "@/lib/channels";
+import { ChannelBadge } from "@/components/channel-badge";
 
 const STAGE_DOT: Record<string, string> = {
   Nuevo: "#9ca3af",
@@ -77,11 +79,14 @@ function EmptyState({ onSeeded }: { onSeeded: () => void }) {
 
 export function ConversationList({
   conversations: conversationsProp,
+  channels = ["whatsapp"],
   selectedId,
   onSelect,
   onSeeded,
 }: {
   conversations: ConversationDto[] | null;
+  /** 010: canales de la organización; con más de uno aparecen distintivo y filtro. */
+  channels?: readonly Channel[];
   selectedId: string | null;
   onSelect: (id: string) => void;
   onSeeded: () => void;
@@ -89,6 +94,8 @@ export function ConversationList({
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<"all" | "unread">("all");
   const [stage, setStage] = useState<string>("all");
+  const [channel, setChannel] = useState<Channel | "all">("all");
+  const multiChannel = channels.length > 1;
   const inputRef = useRef<HTMLInputElement>(null);
 
   /**
@@ -112,9 +119,11 @@ export function ConversationList({
   const searched = conversations.filter(
     (c) =>
       matchesQuery(query, {
-        text: [c.contact.name],
+        text: [c.contact.name, c.contact.handle ? `@${c.contact.handle}` : ""],
         phone: c.contact.phone,
-      }) && (stage === "all" || c.stageName === stage)
+      }) &&
+      (stage === "all" || c.stageName === stage) &&
+      (channel === "all" || c.channel === channel)
   );
   const unreadCount = searched.filter((c) => c.unreadCount > 0).length;
   const visible =
@@ -143,7 +152,7 @@ export function ConversationList({
           <Search className="h-4 w-4 shrink-0 text-text-3" strokeWidth={1.7} />
           <input
             ref={inputRef}
-            placeholder="Buscar por nombre o teléfono…"
+            placeholder={multiChannel ? "Buscar por nombre, teléfono o @usuario…" : "Buscar por nombre o teléfono…"}
             aria-label="Buscar conversación"
             defaultValue=""
             onChange={(e) => setQuery(e.target.value)}
@@ -189,6 +198,27 @@ export function ConversationList({
             </span>
           </button>
         ))}
+
+        {multiChannel && (
+          <div className="flex items-center gap-1" role="group" aria-label="Filtrar por canal" data-testid="channel-filter">
+            {(["all", ...channels] as const).map((c) => (
+              <button
+                key={c}
+                onClick={() => setChannel(c)}
+                aria-pressed={channel === c}
+                title={c === "all" ? "Todos los canales" : CHANNEL_LABEL[c]}
+                className={cn(
+                  "flex h-[27px] shrink-0 items-center gap-1 rounded-full border px-2 text-[12.5px] font-medium transition-colors",
+                  channel === c
+                    ? "border-brand bg-brand text-brand-fg"
+                    : "bg-background text-text-2 hover:bg-accent"
+                )}
+              >
+                {c === "all" ? "Todos" : <ChannelBadge channel={c} className={channel === c ? "text-brand-fg" : ""} />}
+              </button>
+            ))}
+          </div>
+        )}
 
         {stages.length > 0 && (
           <select
@@ -248,11 +278,12 @@ export function ConversationList({
                       <span className="flex items-center justify-between gap-2">
                         <span
                           className={cn(
-                            "truncate text-sm",
+                            "flex min-w-0 items-center gap-1.5 truncate text-sm",
                             unread ? "font-[680]" : "font-semibold"
                           )}
                         >
-                          {c.contact.name}
+                          {multiChannel && <ChannelBadge channel={c.channel} />}
+                          <span className="truncate">{c.contact.name}</span>
                         </span>
                         <span
                           className={cn(

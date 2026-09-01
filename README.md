@@ -264,6 +264,38 @@ del cliente se conecta con el **override de callback por WABA**:
 > Graph** (botón "Sincronizar" en Configuración → Plantillas), así el modo
 > agencia ve las aprobaciones igual.
 
+## Conexión de Instagram
+
+Desde 3.6.0 los mensajes directos de Instagram entran a la misma bandeja y
+los atiende el mismo agente. Se conecta DESDE la app (Configuración →
+Instagram, solo el propietario) por una de tres vías, de la más fácil a la
+más técnica:
+
+1. **Conectar con Instagram** (recomendada, ~2 minutos): un botón que abre el
+   inicio de sesión de Instagram; al aceptar, la cuenta queda conectada, el
+   webhook suscrito y el token se renueva solo cada 60 días. Requiere que el
+   operador de la instancia haya configurado su app de Meta
+   (`INSTAGRAM_APP_ID` / `INSTAGRAM_APP_SECRET`, ver `.env.example`) y que la
+   cuenta sea Profesional. Para cuentas ajenas a la app hace falta App Review
+   (advanced access a `instagram_business_basic` +
+   `instagram_business_manage_messages` y la función *Human Agent*).
+2. **Conectar vía Zernio** (~3 minutos): pegas la API key de tu cuenta de
+   Zernio (con Inbox); Vocero detecta la cuenta de Instagram, crea el webhook
+   y genera su secreto. Los mensajes transitan por Zernio — la app lo avisa
+   antes de guardar.
+3. **Tengo mi propia app de Meta** (agencias): pegas un token de usuario de
+   Instagram de tu app (+ App Secret opcional para la firma) y configuras el
+   webhook con la URL y el verify token que muestra la pestaña.
+
+Reglas del canal que la bandeja aplica sola: 1000 bytes por mensaje (los
+textos largos se parten en varios), sin plantillas ni adjuntos salientes,
+fuera de la ventana de 24 h solo una persona puede responder (hasta 7 días,
+etiquetado como agente humano; el agente de IA calla), y si el token deja de
+funcionar aparece un banner con el botón «Reconectar».
+
+Para probar sin cuenta real: `.env.example` documenta las variables del
+`ig-mock` y `pnpm test:e2e:instagram` conduce el flujo completo.
+
 ## Configuración de la IA
 
 Desde la app, en **Configuración → IA**: pega tu clave de
@@ -373,6 +405,21 @@ SemVer sobre lo que le importa a quien opera una instancia:
 | **Parche** (`1.1.1`) | Arreglos y ajustes. Actualizar es redesplegar. |
 
 La versión vive en `package.json` y se sube en el PR que publica el cambio.
+
+### 3.6.0 — Canal de Instagram DM
+
+- Instagram en la misma bandeja: distintivo y filtro por canal, `@usuario` en
+  la cabecera y la ficha, el agente responde igual que en WhatsApp.
+- Tres formas de conectar (Configuración → Instagram): botón "Conectar con
+  Instagram" (OAuth con la app de la plataforma, token renovado solo), Zernio
+  pegando solo la API key (webhook creado por API), o token de app propia.
+- Webhook `/api/webhooks/ig/<token>` con doble alcance (organización o
+  instancia), firma verificada, idempotente por id de mensaje.
+- Adjuntos entrantes al volumen; textos largos partidos en 1000 bytes;
+  `HUMAN_AGENT` hasta 7 días solo para operadores; banner de reconexión.
+- Modelo: `contact.channel`, `conversation.channel`, `instagram_credentials`;
+  el índice único de contacto incluye el canal (migración `0012`).
+- Constitución 2.1.0: Zernio como dependencia opcional listada.
 
 ### 3.5.0 — Selector de modelo y edición de la base de conocimiento
 

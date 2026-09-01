@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { Menu } from "lucide-react";
+import { AlertTriangle, Menu } from "lucide-react";
+import Link from "next/link";
 import type { Branding } from "@/lib/branding";
 import type { ThemePreference } from "@/lib/theme";
 import { AppNav } from "@/components/app-nav";
@@ -26,6 +27,7 @@ export function AppShell({
   role,
   theme,
   commit,
+  channelAlert = null,
   children,
 }: {
   branding: Branding;
@@ -34,6 +36,8 @@ export function AppShell({
   theme: ThemePreference;
   /** Commit resuelto en el servidor (build-arg o variable de la plataforma). */
   commit?: string;
+  /** 010: una conexión de canal se rompió y hay que reconectar. */
+  channelAlert?: { channel: "instagram"; message: string } | null;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -96,6 +100,24 @@ export function AppShell({
           </span>
         </header>
 
+        {channelAlert && (
+          <div
+            className="flex shrink-0 items-center gap-2 border-b border-danger-soft bg-danger-tint px-3 py-2 text-sm text-danger-text"
+            role="alert"
+            data-testid="channel-alert"
+          >
+            <AlertTriangle className="h-4 w-4 shrink-0" strokeWidth={1.8} />
+            <span className="min-w-0 flex-1 truncate">
+              <strong>Instagram desconectado.</strong> {channelAlert.message}
+            </span>
+            <Link
+              href="/settings/instagram"
+              className="shrink-0 rounded-md border border-danger-soft bg-background px-2.5 py-1 text-xs font-medium hover:bg-accent"
+            >
+              Reconectar
+            </Link>
+          </div>
+        )}
         <main className="min-h-0 min-w-0 flex-1 overflow-hidden">
           <RoleProvider role={role}>{children}</RoleProvider>
         </main>
