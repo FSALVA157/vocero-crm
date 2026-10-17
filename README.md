@@ -437,6 +437,14 @@ SemVer sobre lo que le importa a quien opera una instancia:
 
 La versión vive en `package.json` y se sube en el PR que publica el cambio.
 
+### 3.7.1 — El agente ya no se pausa por responder en texto plano
+
+- Con un historial largo, el modelo a veces contestaba al cliente en texto
+  plano en vez del JSON que pide Vocero; tras 3 intentos el agente se pausaba
+  en esa conversación. Ahora el historial se le pasa en el mismo formato que
+  se le pide, el reintento le corrige como turno de usuario, y una respuesta
+  legible en texto plano se envía en vez de descartarse.
+
 ### 3.7.0 — WhatsApp vía Kapso
 
 - Nueva vía de conexión de WhatsApp: **Kapso** (Configuración → WhatsApp).
