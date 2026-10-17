@@ -29,6 +29,9 @@ const envSchema = z.object({
   META_APP_SECRET: z.string().optional(),
   META_GRAPH_API_VERSION: z.string().default("v25.0"),
   META_GRAPH_BASE_URL: z.string().url().default("https://graph.facebook.com"),
+  /** 011 — proxy de Kapso (transporte opcional de WhatsApp). En self-test → kapso-mock. */
+  KAPSO_API_BASE_URL: z.string().url().default("https://api.kapso.ai"),
+  KAPSO_GRAPH_VERSION: z.string().default("v24.0"),
   /**
    * 010 — App de Meta del OPERADOR de la instancia para el "Conectar con
    * Instagram" (Business Login). Secreto del negocio del operador, no de un

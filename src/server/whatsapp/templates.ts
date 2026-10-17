@@ -6,7 +6,12 @@ import {
 } from "@/lib/templates";
 import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
-import { graphRequest, MetaApiError, normalizeRecipient } from "@/lib/meta/client";
+import {
+  graphRequest,
+  MetaApiError,
+  normalizeRecipient,
+  transportFor,
+} from "@/lib/meta/client";
 import { scoped } from "@/lib/db/tenant";
 import { publish } from "@/server/events/bus";
 import {
@@ -64,6 +69,14 @@ export function serializeTemplate(t: TemplateRow) {
   };
 }
 
+/** 011: un número de Kapso sin WABA informado no puede gestionar plantillas. */
+function noWabaError(): TemplateError {
+  return new TemplateError(
+    "invalid",
+    "Este número no informa su cuenta de WhatsApp Business: las plantillas no están disponibles"
+  );
+}
+
 /** Crea la plantilla y la manda a aprobación de Meta (FR-050). */
 export async function createTemplate(
   organizationId: string,
@@ -79,6 +92,7 @@ export async function createTemplate(
   if (creds.status === "reconnect_required") {
     throw new TemplateError("reconnect_required", "Reconecta tu número antes de crear plantillas");
   }
+  if (!creds.wabaId) throw noWabaError();
 
   const name = input.name
     .toLowerCase()
@@ -98,7 +112,7 @@ export async function createTemplate(
       `${creds.wabaId}/message_templates`,
       {
         method: "POST",
-        token: creds.token,
+        transport: transportFor(creds),
         body: {
           name,
           language: input.language,
@@ -184,13 +198,14 @@ export async function syncTemplates(organizationId: string): Promise<number> {
   if (!creds) {
     throw new TemplateError("not_connected", "Conecta tu número de WhatsApp primero");
   }
+  if (!creds.wabaId) throw noWabaError();
 
   let data: {
     data?: { id?: string; name?: string; language?: string; status?: string; category?: string; quality_score?: unknown; rejected_reason?: string }[];
   };
   try {
     data = await graphRequest(`${creds.wabaId}/message_templates`, {
-      token: creds.token,
+      transport: transportFor(creds),
     });
   } catch (err) {
     if (err instanceof MetaApiError) {

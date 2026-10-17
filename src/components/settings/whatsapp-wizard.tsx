@@ -15,9 +15,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { KapsoCard } from "@/components/settings/whatsapp-kapso";
 
 type Connection = {
-  wabaId: string;
+  /** 011: transporte. */
+  provider: "meta" | "kapso";
+  kapsoWebhook: boolean;
+  wabaId: string | null;
   phoneNumberId: string;
   displayPhoneNumber: string | null;
   verifiedName: string | null;
@@ -79,6 +83,8 @@ export function WhatsappWizard() {
   const [lastSave, setLastSave] = useState<SaveOutcome | null>(null);
   // 007: fuerza a la tarjeta de suscripción a releer tras guardar.
   const [subscriptionKey, setSubscriptionKey] = useState(0);
+  // 011: vía de conexión elegida en la pantalla (por defecto, la guardada).
+  const [method, setMethod] = useState<"meta" | "kapso" | null>(null);
 
   const refetch = useCallback(async () => {
     const [c, w] = await Promise.all([
@@ -97,6 +103,7 @@ export function WhatsappWizard() {
   if (!loaded) {
     return <p className="text-sm text-muted-foreground">Cargando…</p>;
   }
+  const via = method ?? connection?.provider ?? "meta";
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -108,7 +115,7 @@ export function WhatsappWizard() {
               El token de WhatsApp expiró o fue revocado.
             </p>
             <p className="text-danger-text opacity-80">
-              Los envíos están pausados. Pega un token nuevo abajo y prueba la
+              Los envíos están pausados. Pega un token (o una API key de Kapso) nuevo abajo y prueba la
               conexión para reconectar.
             </p>
           </div>
@@ -124,30 +131,68 @@ export function WhatsappWizard() {
             </p>
             <p className="text-success-text opacity-80">
               {connection.verifiedName ? `${connection.verifiedName} · ` : ""}
-              token …{connection.tokenLast4}
+              {connection.provider === "kapso"
+                ? `vía Kapso · clave …${connection.tokenLast4}`
+                : `token …${connection.tokenLast4}`}
             </p>
           </div>
           <Badge variant="success">Conectado</Badge>
         </div>
       )}
 
-      <ConnectForm
-        existing={connection}
-        onSaved={(outcome) => {
-          setLastSave(outcome);
-          setSubscriptionKey((k) => k + 1);
-          void refetch();
-        }}
-      />
+      <div className="space-y-2" data-testid="wa-method">
+        <p className="text-sm font-medium">¿Cómo conectas tu número?</p>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {(
+            [
+              ["meta", "Meta directo", "Tu app de Meta o la de tu agencia (token de WhatsApp Cloud API)"],
+              ["kapso", "Kapso", "Tu número está en Kapso: solo pegas la API key"],
+            ] as const
+          ).map(([id, title, hint]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setMethod(id)}
+              data-testid={`wa-method-${id}`}
+              aria-pressed={via === id}
+              className={`rounded-lg border p-3 text-left text-sm transition-colors ${via === id ? "border-brand bg-brand/5" : "hover:bg-background/60"}`}
+            >
+              <span className="flex items-center gap-2 font-medium">
+                {title}
+                {connection?.provider === id && <Badge variant="success">En uso</Badge>}
+              </span>
+              <span className="text-xs text-muted-foreground">{hint}</span>
+            </button>
+          ))}
+        </div>
+      </div>
 
-      {webhook && <WebhookCard webhook={webhook} connection={connection} />}
-
-      {connection && (
-        <SubscriptionCard
-          key={subscriptionKey}
-          connection={connection}
-          lastSave={lastSave}
+      {via === "kapso" ? (
+        <KapsoCard
+          existing={connection?.provider === "kapso" ? connection : null}
+          onSaved={() => void refetch()}
         />
+      ) : (
+        <>
+          <ConnectForm
+            existing={connection?.provider === "meta" ? connection : null}
+            onSaved={(outcome) => {
+              setLastSave(outcome);
+              setSubscriptionKey((k) => k + 1);
+              void refetch();
+            }}
+          />
+
+          {webhook && <WebhookCard webhook={webhook} connection={connection} />}
+
+          {connection?.provider === "meta" && (
+            <SubscriptionCard
+              key={subscriptionKey}
+              connection={connection}
+              lastSave={lastSave}
+            />
+          )}
+        </>
       )}
     </div>
   );

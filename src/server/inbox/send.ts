@@ -1,7 +1,12 @@
 import { eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
-import { graphRequest, MetaApiError, normalizeRecipient } from "@/lib/meta/client";
+import {
+  graphRequest,
+  MetaApiError,
+  normalizeRecipient,
+  transportFor,
+} from "@/lib/meta/client";
 import { publish } from "@/server/events/bus";
 import {
   getCredentialsByOrg,
@@ -529,7 +534,7 @@ export async function callGraphSend(
   try {
     const res = await graphRequest<{ messages?: { id: string }[] }>(
       `${credentials.phoneNumberId}/messages`,
-      { method: "POST", token: credentials.token, body: payload }
+      { method: "POST", transport: transportFor(credentials), body: payload }
     );
     const id = res.messages?.[0]?.id;
     if (!id) throw new SendError("meta_error", "Meta no devolvió ID de mensaje");

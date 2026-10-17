@@ -244,7 +244,8 @@ export async function readWebhookSubscription(
   organizationId: string
 ): Promise<SubscriptionView> {
   const creds = await getCredentialsByOrg(organizationId);
-  if (!creds) return { configured: false };
+  // 011: con Kapso no hay suscripción de Meta que leer (el webhook es de Kapso).
+  if (!creds || creds.provider !== "meta") return { configured: false };
   const appSecret = await getAppSecretByOrg(organizationId);
   const { callbackUrl } = await callbackFor(organizationId);
   return {
@@ -260,7 +261,8 @@ export async function runWebhookSubscription(
   organizationId: string
 ): Promise<SubscriptionResult | null> {
   const creds = await getCredentialsByOrg(organizationId);
-  if (!creds) return null;
+  if (!creds || creds.provider !== "meta" || !creds.wabaId) return null;
+  const wabaId = creds.wabaId;
   const appSecret = await getAppSecretByOrg(organizationId);
   const { callbackUrl, verifyToken } = await callbackFor(organizationId);
   const mode = subscriptionMode(creds);
@@ -303,7 +305,7 @@ export async function runWebhookSubscription(
   }
 
   // 2) Override por WABA — siempre.
-  const sub = await subscribeAppToWaba(creds.wabaId, creds.token, {
+  const sub = await subscribeAppToWaba(wabaId, creds.token, {
     callbackUrl,
     verifyToken,
   });

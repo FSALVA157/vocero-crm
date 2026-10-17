@@ -185,6 +185,7 @@ export async function POST(req: Request, ctx: Params) {
       type: String(body.type ?? "text"),
       body,
       at: new Date().toISOString(),
+      via: req.headers.get("x-mock-via") === "kapso" ? "kapso" : "meta",
     });
     return Response.json({
       messaging_product: "whatsapp",

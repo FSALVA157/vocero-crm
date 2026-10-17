@@ -4,7 +4,7 @@ import { getDb, schema } from "@/lib/db";
 import { apiError, parseBody } from "@/lib/api";
 import { isBotAuth, requireBotAuth } from "@/server/bot/auth";
 import { getCredentialsByOrg } from "@/server/whatsapp/credentials";
-import { graphRequest } from "@/lib/meta/client";
+import { graphRequest, transportFor } from "@/lib/meta/client";
 import { IG_IDENTITY_PREFIX } from "@/lib/channels";
 import { getInstagramCredentialsByOrg } from "@/server/instagram/credentials";
 import { sendInstagramSenderAction } from "@/server/instagram/send";
@@ -100,7 +100,7 @@ export async function POST(req: Request) {
   try {
     await graphRequest(`${creds.phoneNumberId}/messages`, {
       method: "POST",
-      token: creds.token,
+      transport: transportFor(creds),
       body: {
         messaging_product: "whatsapp",
         status: "read",

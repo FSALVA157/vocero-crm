@@ -853,7 +853,9 @@ async function main() {
   ok("imagen con caption enviada (201)", upRes.status === 201, JSON.stringify(upJson));
 
   const msgs4 = (await api(`/api/conversations/${conv008.id}/messages`)).json?.messages ?? [];
-  const sentImg = msgs4.find((m) => m.media?.caption === "mira nuestro local");
+  // findLast: en una base persistente hay copias de corridas viejas (sus
+  // archivos pueden ya no estar en disco); la de ESTA corrida es la última.
+  const sentImg = msgs4.findLast((m) => m.media?.caption === "mira nuestro local");
   ok(
     "el saliente con imagen trae asset disponible y origin=operator",
     sentImg?.type === "image" &&
@@ -926,7 +928,7 @@ async function main() {
   });
   await sleep(1600); // ingesta + descarga in-process del binario
   const msgs6 = (await api(`/api/conversations/${conv008.id}/messages`)).json?.messages ?? [];
-  const inImg = msgs6.find((m) => m.media?.caption === "foto de mi negocio");
+  const inImg = msgs6.findLast((m) => m.media?.caption === "foto de mi negocio");
   ok(
     "imagen entrante queda disponible tras la descarga in-process",
     inImg?.direction === "in" &&
