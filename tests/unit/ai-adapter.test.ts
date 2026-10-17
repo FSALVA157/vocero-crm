@@ -117,6 +117,45 @@ describe("chatJson (reintentos y errores tipados)", () => {
     expect(fetchMock).toHaveBeenCalledTimes(3); // agotó los 3 intentos
   });
 
+  it("012: un 4xx permanente (modelo sin visión) NO se reintenta y trae el status", async () => {
+    const fetchMock = vi.fn().mockImplementation(() =>
+      Promise.resolve(
+        new Response('{"error":{"message":"No endpoints found that support image input"}}', { status: 404 })
+      )
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const result = await chatJson(schema, [{ role: "user", content: "hola" }], { organizationId: ORG });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toBe("provider_error");
+      expect(result.status).toBe(404);
+    }
+  });
+
+  it("012: 429 sí es transitorio (se reintenta)", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("slow down", { status: 429 }))
+      .mockResolvedValueOnce(providerResponse('{"action":"reply","text":"ok"}'));
+    vi.stubGlobal("fetch", fetchMock);
+    const result = await chatJson(schema, [{ role: "user", content: "hola" }], { organizationId: ORG });
+    expect(result.ok).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("012: el contenido multimodal viaja tal cual al proveedor", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(providerResponse('{"action":"reply","text":"ok"}'));
+    vi.stubGlobal("fetch", fetchMock);
+    const content = [
+      { type: "text" as const, text: "mira" },
+      { type: "image_url" as const, image_url: { url: "data:image/png;base64,AAAA" } },
+    ];
+    await chatJson(schema, [{ role: "user", content }], { organizationId: ORG });
+    const body = JSON.parse(fetchMock.mock.calls[0]![1]!.body as string);
+    expect(body.messages[0].content).toEqual(content);
+  });
+
   it("salida que nunca cumple el esquema → invalid_output", async () => {
     const fetchMock = vi
       .fn()

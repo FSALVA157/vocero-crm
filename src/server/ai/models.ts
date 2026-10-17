@@ -22,6 +22,8 @@ export type CatalogModel = {
   promptPerM: number | null;
   /** USD por millón de tokens de salida; null si no se informa. */
   completionPerM: number | null;
+  /** 012 — acepta imágenes de entrada; null si el proveedor no lo informa. */
+  vision: boolean | null;
 };
 
 export type ModelCatalog = {
@@ -48,6 +50,7 @@ type RawModel = {
   pricing?: { prompt?: unknown; completion?: unknown } | null;
   architecture?: {
     modality?: unknown;
+    input_modalities?: unknown;
     output_modalities?: unknown;
   } | null;
 };
@@ -70,6 +73,17 @@ function producesText(m: RawModel): boolean {
   }
   // Sin metadatos de arquitectura no podemos excluirlo con criterio.
   return true;
+}
+
+function acceptsImages(m: RawModel): boolean | null {
+  const arch = m.architecture;
+  if (arch && Array.isArray(arch.input_modalities)) {
+    return arch.input_modalities.includes("image");
+  }
+  if (arch && typeof arch.modality === "string" && arch.modality.includes("->")) {
+    return arch.modality.split("->")[0]!.split("+").includes("image");
+  }
+  return null;
 }
 
 /**
@@ -98,6 +112,7 @@ export function normalizeCatalog(raw: unknown): CatalogModel[] {
           : null,
       promptPerM: perMillion(item.pricing?.prompt),
       completionPerM: perMillion(item.pricing?.completion),
+      vision: acceptsImages(item),
     });
   }
   const rank = (id: string) => {

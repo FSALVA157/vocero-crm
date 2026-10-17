@@ -19,6 +19,8 @@ const putSchema = z.object({
   token: z.string().trim().min(8).optional(),
   model: z.string().trim().min(1).max(120),
   judgeModel: z.string().trim().max(120).optional(),
+  /** 012 — ausente = conservar. */
+  visionEnabled: z.boolean().optional(),
 });
 
 export const PUT = withAuth(
@@ -30,6 +32,7 @@ export const PUT = withAuth(
       token: body.data.token,
       model: body.data.model,
       judgeModel: body.data.judgeModel,
+      visionEnabled: body.data.visionEnabled,
     });
     if (!result.ok) return apiError(422, "invalid", result.error);
     return Response.json({ ok: true, tokenLast4: result.tokenLast4 });

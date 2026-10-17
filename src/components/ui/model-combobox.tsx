@@ -10,6 +10,8 @@ export type ModelOption = {
   contextLength: number | null;
   promptPerM: number | null;
   completionPerM: number | null;
+  /** 012 — acepta imágenes de entrada; null = no se sabe. */
+  vision?: boolean | null;
 };
 
 type Props = {

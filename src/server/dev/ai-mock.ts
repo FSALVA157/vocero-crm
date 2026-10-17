@@ -7,13 +7,35 @@ import { JUDGE_MARKER } from "@/server/ai/prompts";
  * apunta explícitamente a él y el gate de mocks está activo.
  */
 
-type InMessage = { role: string; content: string };
+type InPart = { type?: string; text?: unknown; image_url?: unknown };
+export type InMessage = { role: string; content: string | InPart[] };
+
+/** Texto de un mensaje, sea string o partes multimodales (012). */
+function textOf(content: InMessage["content"]): string {
+  if (typeof content === "string") return content;
+  return content
+    .filter((p) => p.type === "text" && typeof p.text === "string")
+    .map((p) => p.text as string)
+    .join("\n");
+}
+
+/** Cuántas imágenes trae el pedido (012). */
+export function countImages(messages: InMessage[]): number {
+  return messages.reduce(
+    (n, m) =>
+      n + (typeof m.content === "string" ? 0 : m.content.filter((p) => p.type === "image_url").length),
+    0
+  );
+}
+
+/** Modelos del catálogo del mock que NO aceptan imágenes (como OpenRouter, 404). */
+export const MOCK_TEXT_ONLY_MODELS = new Set(["mock/agente-basico"]);
 
 export function aiMockCompletion(messages: InMessage[]): string {
-  const system = messages.find((m) => m.role === "system")?.content ?? "";
+  const system = textOf(messages.find((m) => m.role === "system")?.content ?? "");
   // El turno STRICT de un reintento no es del cliente: se responde sobre el
   // último mensaje real (si no, el eco sería del propio STRICT).
-  const users = messages.filter((m) => m.role === "user").map((m) => m.content);
+  const users = messages.filter((m) => m.role === "user").map((m) => textOf(m.content));
   const isRetry = users[users.length - 1]?.startsWith("STRICT") ?? false;
   const lastUser =
     [...users].reverse().find((c) => !c.startsWith("STRICT")) ?? "";
@@ -75,6 +97,15 @@ export function aiMockCompletion(messages: InMessage[]): string {
       action: "move_stage",
       stage: "Interesado",
       reply: "¡Excelente! Te aparto el producto y un compañero te confirma el pago.",
+    });
+  }
+
+  // 012: con imágenes en el pedido, el mock dice cuántas vio y sobre qué.
+  const images = countImages(messages);
+  if (images > 0) {
+    return JSON.stringify({
+      action: "reply",
+      text: `Veo tu imagen (${images}): ${lastUser.slice(0, 80)}`,
     });
   }
 

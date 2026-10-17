@@ -14,6 +14,8 @@ export type AiMockCall = {
   at: string;
   model: string | null;
   tokenLast4: string | null;
+  /** 012 — imágenes que traía el pedido (nunca su contenido). */
+  images: number;
 };
 
 const MAX = 100;
@@ -30,6 +32,7 @@ function store(): AiMockCall[] {
 export function recordAiMockCall(input: {
   authorization: string | null;
   model: unknown;
+  images?: number;
 }): void {
   const token = input.authorization?.replace(/^Bearer\s+/i, "").trim();
   const calls = store();
@@ -37,6 +40,7 @@ export function recordAiMockCall(input: {
     at: new Date().toISOString(),
     model: typeof input.model === "string" ? input.model : null,
     tokenLast4: token ? token.slice(-4) : null,
+    images: input.images ?? 0,
   });
   if (calls.length > MAX) calls.splice(0, calls.length - MAX);
 }

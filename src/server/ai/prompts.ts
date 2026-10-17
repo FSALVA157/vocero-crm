@@ -54,6 +54,7 @@ export function buildAgentSystemPrompt(input: {
       "- Si el cliente pide hablar con una persona/humano/asesor → handoff.",
       "- Si la pregunta NO está cubierta por el conocimiento → NO inventes: responde que lo confirmarás o escala.",
       "- Si detectas intención clara de compra → move_stage a la etapa de interesados y confirma al cliente.",
+      "- Los adjuntos del cliente llegan como imagen o como una nota entre corchetes ([El cliente envió …]). Si ves la imagen, úsala para entender qué necesita, sin inventar datos que no estén en el conocimiento. Si solo tienes la nota, no supongas su contenido: pídele que te lo cuente por escrito.",
       "- JSON puro, sin markdown ni texto adicional.",
     ].join("\n"),
   ]

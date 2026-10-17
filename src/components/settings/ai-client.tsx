@@ -13,6 +13,7 @@ type Config = {
   tokenLast4: string | null;
   model: string | null;
   judgeModel: string | null;
+  visionEnabled: boolean;
 };
 
 type Aviso = { tipo: "ok" | "error"; texto: string };
@@ -34,6 +35,7 @@ export function AiClient() {
   const [token, setToken] = useState("");
   const [model, setModel] = useState("");
   const [judgeModel, setJudgeModel] = useState("");
+  const [visionEnabled, setVisionEnabled] = useState(true);
   const [aviso, setAviso] = useState<Aviso | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [probando, setProbando] = useState(false);
@@ -46,6 +48,7 @@ export function AiClient() {
     setConfig(data);
     setModel(data.model ?? MODELO_SUGERIDO);
     setJudgeModel(data.judgeModel ?? "");
+    setVisionEnabled(data.visionEnabled);
   }, []);
 
   // 009: el catálogo se pide aparte y nunca bloquea la pantalla — si falla,
@@ -84,6 +87,7 @@ export function AiClient() {
         ...(token.trim() ? { token: token.trim() } : {}),
         model: model.trim(),
         judgeModel: judgeModel.trim() || undefined,
+        visionEnabled,
       }),
     }).catch(() => null);
     setGuardando(false);
@@ -136,6 +140,11 @@ export function AiClient() {
     setToken("");
     void refetch();
   }
+
+  // 012: aviso solo si el catálogo AFIRMA que el modelo no ve imágenes.
+  const modeloSinVision =
+    visionEnabled &&
+    catalogo?.models.find((m) => m.id === model.trim())?.vision === false;
 
   const puedeGuardar =
     model.trim().length > 0 && (config?.configured || token.trim().length >= 8);
@@ -226,6 +235,29 @@ export function AiClient() {
                 ? `Catálogo del proveedor: ${catalogo.models.length} modelos de texto (precio en USD por millón de tokens, entrada / salida). También puedes escribir un ID a mano.`
                 : `Catálogo no disponible${catalogo.error ? ` (${catalogo.error})` : ""}: escribe el ID del modelo a mano, p. ej. ${MODELO_SUGERIDO}.`}
           </p>
+
+          <div className="space-y-1.5 rounded-md border bg-background/40 p-3">
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <input
+                type="checkbox"
+                checked={visionEnabled}
+                onChange={(e) => setVisionEnabled(e.target.checked)}
+                data-testid="ai-vision-toggle"
+              />
+              El agente puede ver imágenes
+            </label>
+            <p className="text-xs text-muted-foreground">
+              Las fotos que mandan tus clientes se envían al modelo para que las
+              entienda. Cada imagen encarece el turno; si lo apagas, el agente
+              solo sabe que llegó una imagen y le pide al cliente que la describa.
+            </p>
+            {modeloSinVision && (
+              <p className="text-xs text-warning-text" data-testid="ai-vision-warning">
+                Este modelo no ve imágenes: el agente recibirá solo una nota de
+                que llegó una. Elige un modelo con visión (p. ej. {MODELO_SUGERIDO}).
+              </p>
+            )}
+          </div>
 
           {aviso && (
             <p

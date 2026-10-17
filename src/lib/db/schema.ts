@@ -633,6 +633,12 @@ export const orgAiConfig = pgTable(
     model: text("model").notNull(),
     /** Si falta, el juez del Laboratorio usa `model`. */
     judgeModel: text("judge_model"),
+    /**
+     * 012 — El agente recibe las imágenes entrantes. Encendido por defecto;
+     * apagado, le llegan como una nota de texto (cada imagen encarece el turno
+     * y viaja al proveedor de IA).
+     */
+    visionEnabled: boolean("vision_enabled").notNull().default(true),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
