@@ -8,7 +8,13 @@ import { chatJson, type ChatMessage } from "@/lib/ai";
 import { publish } from "@/server/events/bus";
 import { isWindowOpen } from "@/server/inbox/window";
 import { SendError, sendText } from "@/server/inbox/send";
-import { AgentAction, degradeAction, resolveStage, type AgentActionType } from "@/server/ai/actions";
+import {
+  AgentAction,
+  degradeAction,
+  plainReplyFrom,
+  resolveStage,
+  type AgentActionType,
+} from "@/server/ai/actions";
 import { matchesHandoffIntent } from "@/server/ai/handoff";
 import { buildAgentSystemPrompt } from "@/server/ai/prompts";
 
@@ -97,15 +103,28 @@ export async function runAgentTurn(conversationId: string): Promise<void> {
     },
     ...history
       .filter((m) => m.text)
-      .map((m) => ({
-        role: m.direction === "in" ? ("user" as const) : ("assistant" as const),
-        content: m.text!,
-      })),
+      .map((m) =>
+        m.direction === "in"
+          ? { role: "user" as const, content: m.text! }
+          : // Los turnos previos del lado del negocio van en el MISMO formato
+            // que se le pide al modelo: con muchas respuestas en texto plano
+            // en el historial, el modelo imitaba ese formato y dejaba de
+            // devolver JSON (incidente 2026-10-17).
+            { role: "assistant" as const, content: JSON.stringify({ action: "reply", text: m.text }) }
+      ),
   ];
 
   const result = await chatJson(AgentAction, messages, { organizationId });
   if (!result.ok) {
     if (result.error === "not_configured") return;
+    // El modelo respondió al cliente en texto plano en vez de JSON: es una
+    // respuesta legible, no una falla. Se envía en vez de pausar el agente.
+    const plain = result.error === "invalid_output" ? plainReplyFrom(result.raw) : null;
+    if (plain) {
+      console.warn("[agente] salida sin JSON tratada como respuesta de texto");
+      await deliverReply(conversation, plain);
+      return;
+    }
     // Fallo persistente del proveedor o salida imposible → escalar (FR-022).
     console.error(`[agente] fallo del proveedor (raw): ${result.detail}`);
     await applyHandoff(conversationId, organizationId, "error");

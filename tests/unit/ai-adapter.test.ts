@@ -83,6 +83,24 @@ describe("chatJson (reintentos y errores tipados)", () => {
     // el reintento agrega la instrucción STRICT
     const secondBody = JSON.parse(fetchMock.mock.calls[1]![1]!.body as string);
     expect(JSON.stringify(secondBody.messages)).toContain("STRICT");
+    // ...como turno de USUARIO tras SU respuesta (un system a mitad de
+    // conversación lo pliegan/ignoran algunos proveedores).
+    const tail = secondBody.messages.slice(-2);
+    expect(tail[0]).toEqual({ role: "assistant", content: "no soy json" });
+    expect(tail[1].role).toBe("user");
+  });
+
+  it("texto plano persistente → invalid_output con la última salida cruda", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(() => Promise.resolve(providerResponse("Sí, acá estoy 👋")))
+    );
+    const result = await chatJson(schema, [{ role: "user", content: "hola" }], { organizationId: ORG });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toBe("invalid_output");
+      expect(result.raw).toBe("Sí, acá estoy 👋");
+    }
   });
 
   it("proveedor caído (500 persistente) → error tipado, jamás excepción", async () => {

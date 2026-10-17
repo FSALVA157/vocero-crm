@@ -164,6 +164,27 @@ async function main() {
   const bin = img ? await fetch(`${BASE}/api/media/${img.media.assetId}`, { headers: { cookie, origin: BASE } }) : null;
   ok("el binario se sirve desde el volumen propio", Boolean(bin?.ok));
 
+  console.log("\n== US2: el agente de IA responde por Kapso ==");
+  await api("/api/settings/ai", { method: "PUT", body: JSON.stringify({ token: "mock-token", model: "mock/model" }) });
+  await api("/api/agent/profile", { method: "PUT", body: JSON.stringify({ name: "Sofi", tone: "cálido", instructions: "Atiendes un taller.", enabled: true }) });
+  // Una respuesta del operador pausa al agente (handoff manual): se reactiva.
+  await api(`/api/conversations/${conv?.id}`, { method: "PATCH", body: JSON.stringify({ reactivate: true, aiEnabled: true }) });
+  const agentReply = async (needle) =>
+    until(async () => (await msgs(conv.id)).find((m) => m.direction === "out" && m.origin === "ai" && (m.text ?? "").includes(needle)), 20000);
+  await inbound({ from, text: `hola agente ${RUN}` });
+  const ai1 = await agentReply(`hola agente ${RUN}`);
+  const aiOut = (await outbox()).find((o) => o.to === from && (o.body?.text?.body ?? "").includes(`hola agente ${RUN}`));
+  ok("el agente responde y sale por el proxy de Kapso", Boolean(ai1) && aiOut?.via === "kapso", JSON.stringify({ ai1, aiOut }));
+  await inbound({ from, text: `texto_plano_una_vez ${RUN}` });
+  const ai2 = await agentReply(`texto_plano_una_vez ${RUN}`);
+  ok("salida sin JSON en el 1er intento → el reintento recupera la respuesta", Boolean(ai2), JSON.stringify(ai2));
+  await inbound({ from, text: `responde_texto_plano ${RUN}` });
+  const ai3 = await agentReply("¿En qué te puedo ayudar?");
+  const c3 = (await convs()).find((c) => c.id === conv?.id);
+  ok("texto plano en TODOS los intentos → se envía igual, el agente no se pausa (incidente 17-10)", Boolean(ai3) && !c3?.handoffAt, JSON.stringify({ ai3, handoffAt: c3?.handoffAt }));
+  // El resto del guion no espera respuestas del agente.
+  await api("/api/agent/profile", { method: "PUT", body: JSON.stringify({ name: "Sofi", tone: "cálido", instructions: "Atiendes un taller.", enabled: false }) });
+
   console.log("\n== Seguridad del webhook ==");
   const raw = JSON.stringify({ object: "whatsapp_business_account", entry: [] });
   const forged = await fetch(`${BASE}/api/webhooks/kapso/${webhookToken}`, { method: "POST", headers: { "content-type": "application/json", "x-webhook-signature": "0".repeat(64) }, body: raw });

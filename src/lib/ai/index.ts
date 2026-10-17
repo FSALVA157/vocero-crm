@@ -21,7 +21,13 @@ export type ChatMessage = {
 
 export type ChatJsonResult<T> =
   | { ok: true; data: T; raw: string }
-  | { ok: false; error: "not_configured" | "provider_error" | "invalid_output"; detail: string };
+  | {
+      ok: false;
+      error: "not_configured" | "provider_error" | "invalid_output";
+      detail: string;
+      /** Última salida cruda del modelo, si la hubo (para degradar con criterio). */
+      raw?: string;
+    };
 
 const MAX_ATTEMPTS = 3;
 const RETRY_DELAY_MS = 500;
@@ -55,14 +61,19 @@ export async function chatJson<T>(
   }
 
   let lastDetail = "";
+  let lastRaw: string | undefined;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    // Reintento: se le muestra al modelo SU respuesta y se le corrige como
+    // turno de usuario. Un `system` a mitad de conversación lo ignoran varios
+    // proveedores (Anthropic vía OpenRouter lo pliega al prompt de sistema).
     const attemptMessages: ChatMessage[] =
       attempt === 1
         ? messages
         : [
             ...messages,
+            ...(lastRaw ? [{ role: "assistant" as const, content: lastRaw }] : []),
             {
-              role: "system",
+              role: "user",
               content:
                 "STRICT: tu respuesta anterior no fue JSON válido según el esquema. Responde ÚNICAMENTE el objeto JSON, sin explicaciones ni markdown.",
             },
@@ -74,6 +85,7 @@ export async function chatJson<T>(
         config.token,
         opts.timeoutMs
       );
+      lastRaw = raw;
       const extracted = extractJson(raw);
       if (extracted === null) {
         lastDetail = `sin JSON extraíble (raw=${truncate(raw)})`;
@@ -101,6 +113,7 @@ export async function chatJson<T>(
       ? "invalid_output"
       : "provider_error",
     detail: lastDetail,
+    ...(lastRaw !== undefined ? { raw: lastRaw } : {}),
   };
 }
 

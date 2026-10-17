@@ -50,3 +50,16 @@ export function degradeAction(action: AgentActionType): AgentActionType {
   }
   return action;
 }
+
+/**
+ * Una salida del modelo que NO es JSON pero sí parece una respuesta al
+ * cliente: sin llaves (no es un JSON roto ni una acción a medias), ni bloque
+ * de código, y de largo razonable. Cualquier otra cosa sigue siendo falla.
+ */
+export function plainReplyFrom(raw: string | undefined): string | null {
+  const text = raw?.trim();
+  if (!text) return null;
+  if (text.length > 1500) return null;
+  if (/[{}]|```/.test(text)) return null;
+  return text;
+}
