@@ -1,9 +1,9 @@
-import { asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
 import { scoped } from "@/lib/db/tenant";
 import { moveLeadToStage as moveLeadThroughHistory } from "@/server/leads/stage-history";
-import { isAiConfiguredFor } from "@/server/ai/config";
+import { getAiConfigPublic, isAiConfiguredFor } from "@/server/ai/config";
 import { chatJson, type ChatMessage } from "@/lib/ai";
 import { publish } from "@/server/events/bus";
 import { isWindowOpen } from "@/server/inbox/window";
@@ -17,6 +17,19 @@ import {
 } from "@/server/ai/actions";
 import { matchesHandoffIntent } from "@/server/ai/handoff";
 import { buildAgentSystemPrompt } from "@/server/ai/prompts";
+import {
+  buildHistoryMessages,
+  diskImageLoader,
+  stripImages,
+  type HistoryAsset,
+} from "@/server/ai/history";
+
+/**
+ * Status con que un proveedor OpenRouter-compatible rechaza imágenes para un
+ * modelo de solo texto (OpenRouter: 404 "No endpoints found that support
+ * image input"). 401/403/429 no: reintentar sin imágenes no los arregla.
+ */
+const IMAGE_REJECTED_STATUSES = [400, 404, 413, 415, 422];
 
 /**
  * Turno del agente (FR-021..FR-025).
@@ -91,6 +104,38 @@ export async function runAgentTurn(conversationId: string): Promise<void> {
     .where(eq(schema.pipelineStage.organizationId, organizationId))
     .orderBy(asc(schema.pipelineStage.position));
 
+  // 012: los adjuntos entrantes llegan al modelo (imagen o nota de texto).
+  const assetIds = history
+    .map((m) => m.mediaAssetId)
+    .filter((id): id is string => Boolean(id));
+  const assetRows: HistoryAsset[] = assetIds.length
+    ? await db
+        .select({
+          id: schema.mediaAsset.id,
+          kind: schema.mediaAsset.kind,
+          mimeType: schema.mediaAsset.mimeType,
+          fileName: schema.mediaAsset.fileName,
+          caption: schema.mediaAsset.caption,
+          payload: schema.mediaAsset.payload,
+        })
+        .from(schema.mediaAsset)
+        .where(
+          and(
+            eq(schema.mediaAsset.organizationId, organizationId),
+            inArray(schema.mediaAsset.id, assetIds)
+          )
+        )
+    : [];
+  // El interruptor solo se consulta si hay imágenes en la ventana.
+  const visionEnabled = assetRows.some((a) => a.kind === "image")
+    ? (await getAiConfigPublic(organizationId)).visionEnabled
+    : false;
+  const turns = await buildHistoryMessages(
+    history,
+    new Map(assetRows.map((a) => [a.id, a])),
+    { vision: visionEnabled, loadImage: diskImageLoader(organizationId) }
+  );
+
   const messages: ChatMessage[] = [
     {
       role: "system",
@@ -101,20 +146,24 @@ export async function runAgentTurn(conversationId: string): Promise<void> {
         channel: conversation.channel,
       }),
     },
-    ...history
-      .filter((m) => m.text)
-      .map((m) =>
-        m.direction === "in"
-          ? { role: "user" as const, content: m.text! }
-          : // Los turnos previos del lado del negocio van en el MISMO formato
-            // que se le pide al modelo: con muchas respuestas en texto plano
-            // en el historial, el modelo imitaba ese formato y dejaba de
-            // devolver JSON (incidente 2026-10-17).
-            { role: "assistant" as const, content: JSON.stringify({ action: "reply", text: m.text }) }
-      ),
+    ...turns.messages,
   ];
 
-  const result = await chatJson(AgentAction, messages, { organizationId });
+  let result = await chatJson(AgentAction, messages, { organizationId });
+  // El modelo elegido no admite imágenes (el proveedor rechaza el pedido con
+  // un 4xx): mismo turno con notas de texto en vez de pausar el agente.
+  if (
+    !result.ok &&
+    turns.imageCount > 0 &&
+    result.error === "provider_error" &&
+    result.status !== undefined &&
+    IMAGE_REJECTED_STATUSES.includes(result.status)
+  ) {
+    console.warn(
+      `[agente] el proveedor rechazó las imágenes (${result.status}); reintento sin ellas`
+    );
+    result = await chatJson(AgentAction, stripImages(messages), { organizationId });
+  }
   if (!result.ok) {
     if (result.error === "not_configured") return;
     // El modelo respondió al cliente en texto plano en vez de JSON: es una

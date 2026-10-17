@@ -65,7 +65,21 @@ describe("normalizeCatalog", () => {
       contextLength: null,
       promptPerM: null,
       completionPerM: null,
+      vision: null,
     });
+  });
+
+  it("012: marca qué modelos aceptan imágenes", () => {
+    const models = normalizeCatalog({
+      data: [
+        { id: "a/vision", architecture: { modality: "text+image->text" } },
+        { id: "b/texto", architecture: { modality: "text->text" } },
+        { id: "c/inputs", architecture: { input_modalities: ["text", "image"], output_modalities: ["text"] } },
+        { id: "d/nada" },
+      ],
+    });
+    const vision = Object.fromEntries(models.map((m) => [m.id, m.vision]));
+    expect(vision).toEqual({ "a/vision": true, "b/texto": false, "c/inputs": true, "d/nada": null });
   });
 
   it("respuesta inesperada → lista vacía", () => {

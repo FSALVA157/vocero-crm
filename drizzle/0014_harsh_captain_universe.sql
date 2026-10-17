@@ -1,0 +1,1 @@
+ALTER TABLE "org_ai_config" ADD COLUMN IF NOT EXISTS "vision_enabled" boolean DEFAULT true NOT NULL;

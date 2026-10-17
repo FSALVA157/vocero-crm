@@ -85,6 +85,7 @@ No corre E2E: eso es tuyo antes de declarar "Hecho".
 |---|---|
 | El cerebro/proveedor LLM | `src/lib/ai/` (adaptador OpenRouter-compatible, `chatJson<T>`) |
 | El comportamiento/prompt del agente | `src/server/ai/prompts.ts` |
+| Qué ve el agente de los adjuntos (imágenes, notas, límite de 2, interruptor) | `src/server/ai/history.ts` (`buildHistoryMessages`, `diskImageLoader`) + `org_ai_config.vision_enabled` |
 | Las acciones que puede tomar el agente | `src/server/ai/actions.ts` + ejecución en `src/server/ai/pipeline.ts` |
 | Las personas o el juez del Laboratorio | `src/server/lab/personas.ts` · `src/server/lab/judge.ts` |
 | El canal WhatsApp (Graph API) | `src/lib/meta/` (cliente único) + `src/server/whatsapp/` |

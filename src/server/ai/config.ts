@@ -19,6 +19,8 @@ export type AiConfig = {
   tokenLast4: string;
   model: string;
   judgeModel: string | null;
+  /** 012 — el agente recibe las imágenes entrantes. */
+  visionEnabled: boolean;
 };
 
 /** Config completa con la clave descifrada. Solo servidor. */
@@ -34,6 +36,7 @@ export async function getAiConfig(
       tokenLast4: schema.orgAiConfig.tokenLast4,
       model: schema.orgAiConfig.model,
       judgeModel: schema.orgAiConfig.judgeModel,
+      visionEnabled: schema.orgAiConfig.visionEnabled,
     })
     .from(schema.orgAiConfig)
     .where(eq(schema.orgAiConfig.organizationId, organizationId))
@@ -49,6 +52,7 @@ export async function getAiConfig(
     tokenLast4: row.tokenLast4,
     model: row.model,
     judgeModel: row.judgeModel,
+    visionEnabled: row.visionEnabled,
   };
 }
 
@@ -58,6 +62,7 @@ export async function getAiConfigPublic(organizationId: string): Promise<{
   tokenLast4: string | null;
   model: string | null;
   judgeModel: string | null;
+  visionEnabled: boolean;
 }> {
   const db = getDb();
   const rows = await db
@@ -65,6 +70,7 @@ export async function getAiConfigPublic(organizationId: string): Promise<{
       tokenLast4: schema.orgAiConfig.tokenLast4,
       model: schema.orgAiConfig.model,
       judgeModel: schema.orgAiConfig.judgeModel,
+      visionEnabled: schema.orgAiConfig.visionEnabled,
     })
     .from(schema.orgAiConfig)
     .where(eq(schema.orgAiConfig.organizationId, organizationId))
@@ -75,6 +81,7 @@ export async function getAiConfigPublic(organizationId: string): Promise<{
     tokenLast4: row?.tokenLast4 ?? null,
     model: row?.model ?? null,
     judgeModel: row?.judgeModel ?? null,
+    visionEnabled: row?.visionEnabled ?? true,
   };
 }
 
@@ -92,13 +99,15 @@ export async function isAiConfiguredFor(
 
 /**
  * Guarda la configuración. `token` ausente conserva la guardada, para poder
- * cambiar solo el modelo sin volver a pegar la clave.
+ * cambiar solo el modelo sin volver a pegar la clave; `visionEnabled` ausente
+ * conserva el valor guardado (o el default, encendido).
  */
 export async function saveAiConfig(input: {
   organizationId: string;
   token?: string;
   model: string;
   judgeModel?: string | null;
+  visionEnabled?: boolean;
 }): Promise<{ ok: true; tokenLast4: string } | { ok: false; error: string }> {
   const db = getDb();
   const actual = await getAiConfig(input.organizationId);
@@ -114,6 +123,7 @@ export async function saveAiConfig(input: {
     tokenLast4: token.slice(-4),
     model: input.model,
     judgeModel: input.judgeModel?.trim() || null,
+    visionEnabled: input.visionEnabled ?? actual?.visionEnabled ?? true,
     updatedAt: new Date(),
   };
   await db

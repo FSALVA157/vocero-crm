@@ -14,10 +14,33 @@ import { getAiConfig } from "@/server/ai/config";
  * sigue siendo de instancia porque existe para apuntar al ai-mock.
  */
 
+/** 012 — Partes de un mensaje multimodal (formato OpenAI, el de OpenRouter). */
+export type ChatContentPart =
+  | { type: "text"; text: string }
+  | { type: "image_url"; image_url: { url: string } };
+
 export type ChatMessage = {
   role: "system" | "user" | "assistant";
-  content: string;
+  content: string | ChatContentPart[];
 };
+
+/** El proveedor respondió con un status HTTP de error. */
+export class ProviderHttpError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ProviderHttpError";
+    this.status = status;
+  }
+}
+
+/**
+ * 4xx que no se arreglan reintentando el mismo pedido (clave mala, modelo
+ * inexistente, modelo sin entrada de imagen…). 408/409/429 sí son transitorios.
+ */
+function isPermanentStatus(status: number): boolean {
+  return status >= 400 && status < 500 && ![408, 409, 429].includes(status);
+}
 
 export type ChatJsonResult<T> =
   | { ok: true; data: T; raw: string }
@@ -27,6 +50,8 @@ export type ChatJsonResult<T> =
       detail: string;
       /** Última salida cruda del modelo, si la hubo (para degradar con criterio). */
       raw?: string;
+      /** Status HTTP del último error del proveedor, si lo hubo. */
+      status?: number;
     };
 
 const MAX_ATTEMPTS = 3;
@@ -62,6 +87,7 @@ export async function chatJson<T>(
 
   let lastDetail = "";
   let lastRaw: string | undefined;
+  let lastStatus: number | undefined;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     // Reintento: se le muestra al modelo SU respuesta y se le corrige como
     // turno de usuario. Un `system` a mitad de conversación lo ignoran varios
@@ -86,6 +112,7 @@ export async function chatJson<T>(
         opts.timeoutMs
       );
       lastRaw = raw;
+      lastStatus = undefined;
       const extracted = extractJson(raw);
       if (extracted === null) {
         lastDetail = `sin JSON extraíble (raw=${truncate(raw)})`;
@@ -101,6 +128,8 @@ export async function chatJson<T>(
       return { ok: true, data: parsed.data, raw };
     } catch (err) {
       lastDetail = err instanceof Error ? err.message : String(err);
+      lastStatus = err instanceof ProviderHttpError ? err.status : undefined;
+      if (lastStatus !== undefined && isPermanentStatus(lastStatus)) break;
       if (attempt < MAX_ATTEMPTS) {
         await sleep(RETRY_DELAY_MS * attempt);
       }
@@ -114,6 +143,7 @@ export async function chatJson<T>(
       : "provider_error",
     detail: lastDetail,
     ...(lastRaw !== undefined ? { raw: lastRaw } : {}),
+    ...(lastStatus !== undefined ? { status: lastStatus } : {}),
   };
 }
 
@@ -140,7 +170,10 @@ async function callProvider(
     });
     if (!res.ok) {
       const text = await res.text().catch(() => "");
-      throw new Error(`proveedor respondió ${res.status}: ${truncate(text)}`);
+      throw new ProviderHttpError(
+        `proveedor respondió ${res.status}: ${truncate(text)}`,
+        res.status
+      );
     }
     const json = (await res.json()) as {
       choices?: { message?: { content?: string } }[];

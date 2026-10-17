@@ -73,6 +73,7 @@ en pares pregunta/respuesta y bloques libres. Responde SOLO con lo que sabe,
 agrupa ráfagas de mensajes en una respuesta, escala a humano cuando el cliente
 lo pide (con detección de respaldo), cuando él lo decide o cuando algo falla.
 Proveedor LLM por adaptador OpenRouter-compatible: usa el modelo que quieras.
+Con un modelo con visión, el agente **ve las fotos** que mandan tus clientes.
 
 ### 🔌 Trae tu propio agente
 
@@ -343,6 +344,15 @@ OpenRouter, no el CRM.
 Solo sigue siendo de instancia `OPENROUTER_BASE_URL`, por si apuntas a otro
 proveedor compatible con la API de OpenRouter.
 
+**El agente ve imágenes** (interruptor «El agente puede ver imágenes»,
+encendido por defecto): las fotos que manda el cliente viajan al modelo junto
+con su pie, solo las 2 más recientes de la conversación y hasta 5 MB
+(jpeg/png/webp/gif). Necesita un modelo con visión; si el elegido no la tiene,
+la pantalla lo avisa y el agente recibe solo una nota de que llegó una imagen.
+Apagado, pasa lo mismo y ninguna imagen sale hacia el proveedor. Audios,
+videos y documentos llegan siempre como nota («el cliente envió un audio»):
+el agente sabe que existen y pide que se los cuenten por escrito.
+
 Sin clave, todo lo demás funciona; Agente y Laboratorio muestran cómo
 activarlos. Después configura el comportamiento y el conocimiento en la
 pestaña **Agente** y corre el **Laboratorio** antes de encender el agente con
@@ -436,6 +446,19 @@ SemVer sobre lo que le importa a quien opera una instancia:
 | **Parche** (`1.1.1`) | Arreglos y ajustes. Actualizar es redesplegar. |
 
 La versión vive en `package.json` y se sube en el PR que publica el cambio.
+
+### 3.8.0 — El agente ve imágenes
+
+- Las fotos que mandan los clientes llegan al modelo del agente (si tiene
+  visión): responde sobre lo que ve. Interruptor en Configuración → IA,
+  encendido por defecto; la pantalla avisa si el modelo elegido no ve imágenes.
+- Antes, un mensaje sin texto (foto sin pie, audio, documento) no llegaba al
+  agente. Ahora cada adjunto llega como imagen o como una nota de texto.
+- Si el proveedor rechaza las imágenes, el turno se repite sin ellas en vez de
+  pausar el agente. Los errores 4xx permanentes del proveedor ya no se
+  reintentan 3 veces.
+- Actualizar es redesplegar: la migración `0014` agrega una columna y corre
+  sola al arrancar.
 
 ### 3.7.1 — El agente ya no se pausa por responder en texto plano
 
