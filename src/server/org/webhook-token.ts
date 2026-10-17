@@ -33,6 +33,11 @@ export function webhookUrlFor(appBaseUrl: string, token: string): string {
   return `${appBaseUrl.replace(/\/$/, "")}/api/webhooks/wa/${token}`;
 }
 
+/** 011 — URL del webhook `kind:"meta"` que Vocero registra en Kapso. */
+export function kapsoWebhookUrlFor(appBaseUrl: string, token: string): string {
+  return `${appBaseUrl.replace(/\/$/, "")}/api/webhooks/kapso/${token}`;
+}
+
 /**
  * Token de webhook de una organización, generándolo si aún no tiene.
  *

@@ -39,7 +39,7 @@ export async function POST(req: Request) {
   if (!creds) return apiError(409, "not_connected", "Sin número conectado");
 
   const payload = buildStatusPayload({
-    wabaId: creds.wabaId,
+    wabaId: creds.wabaId ?? "",
     phoneNumberId: creds.phoneNumberId,
     waMessageId: body.data.waMessageId,
     status: body.data.status,

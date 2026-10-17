@@ -4,8 +4,7 @@ import {
   isValidWebhookToken,
   type WebhookPayload,
 } from "@/server/inbox/webhook";
-import { processEchoesValue, processMessagesValue } from "@/server/inbox/ingest";
-import { processTemplateStatusValue } from "@/server/whatsapp/template-events";
+import { processPayload } from "@/server/whatsapp/webhook-dispatch";
 import { findOrgByWebhookToken } from "@/server/org/webhook-token";
 import { getAppSecretByOrg } from "@/server/whatsapp/credentials";
 
@@ -74,28 +73,4 @@ export async function POST(req: Request, { params }: Params) {
   });
 
   return Response.json({ received: true });
-}
-
-async function processPayload(
-  payload: WebhookPayload,
-  organizationId: string
-): Promise<void> {
-  for (const entry of payload.entry ?? []) {
-    for (const change of entry.changes ?? []) {
-      if (!change.value) continue;
-      if (change.field === "messages") {
-        await processMessagesValue(change.value, organizationId);
-      } else if (change.field === "smb_message_echoes") {
-        // 008: mensajes enviados a mano desde la app del teléfono (coexistence)
-        await processEchoesValue(change.value, organizationId);
-      } else if (change.field === "message_template_status_update") {
-        await processTemplateStatusValue(
-          entry.id ?? null,
-          change.value,
-          organizationId
-        );
-      }
-      // otros fields: ignorar sin error
-    }
-  }
 }

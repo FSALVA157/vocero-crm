@@ -1,7 +1,8 @@
 import { createHmac } from "node:crypto";
 import { nextEchoWamid, nextInboundWamid, nextN } from "@/server/dev/wa-mock-state";
 import { ensureWebhookToken } from "@/server/org/webhook-token";
-import { getAppSecretByOrg } from "@/server/whatsapp/credentials";
+import { getKapsoMockState } from "@/server/dev/kapso-mock-state";
+import { getAppSecretByOrg, getCredentialsByOrg } from "@/server/whatsapp/credentials";
 
 /**
  * Construye un payload real de Meta y lo entrega al webhook público por
@@ -22,6 +23,33 @@ export async function deliverToWebhook(
 ): Promise<Response> {
   const raw = JSON.stringify(payload);
   const port = process.env.PORT ?? "3000";
+
+  // 011 — número conectado vía Kapso: el evento llega como lo haría en
+  // producción, por el webhook kind:"meta" que Vocero registró en el
+  // kapso-mock, firmado con SU secret_key. Sin webhook registrado, Kapso no
+  // entrega nada (410: el guion lo distingue de un fallo del webhook).
+  const creds = organizationId ? await getCredentialsByOrg(organizationId) : null;
+  if (creds?.provider === "kapso") {
+    const hook = getKapsoMockState().webhooks.find(
+      (w) => w.phoneNumberId === creds.phoneNumberId && w.kind === "meta" && w.active
+    );
+    if (!hook) return new Response(null, { status: 410 });
+    const target = new URL(hook.url);
+    const path = overrideToken
+      ? `/api/webhooks/kapso/${overrideToken}`
+      : target.pathname;
+    const signature = createHmac("sha256", hook.secret).update(raw, "utf8").digest("hex");
+    return fetch(`http://127.0.0.1:${port}${path}`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-webhook-signature": signature,
+        "x-idempotency-key": createHmac("sha256", "idem").update(raw).digest("hex"),
+      },
+      body: raw,
+    });
+  }
+
   const token = overrideToken ?? (await ensureWebhookToken(organizationId));
   const url = `http://127.0.0.1:${port}/api/webhooks/wa/${token}`;
 

@@ -16,6 +16,8 @@ export type OutboxEntry = {
    * pueda mandarle un webhook de estado a ESE mensaje sin adivinar el formato.
    */
   waMessageId?: string;
+  /** 011: "kapso" si llegó por el kapso-mock (proxy), "meta" si directo. */
+  via?: "meta" | "kapso";
 };
 
 export type MockTemplate = {

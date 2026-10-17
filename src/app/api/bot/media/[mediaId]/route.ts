@@ -34,7 +34,7 @@ export async function GET(
 
   try {
     const { data, mimeType } = await downloadGraphMedia(
-      creds.token,
+      creds,
       mediaId,
       MAX_MEDIA_BYTES
     );

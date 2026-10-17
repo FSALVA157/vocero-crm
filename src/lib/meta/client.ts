@@ -36,22 +36,61 @@ export class MetaApiError extends Error {
   }
 }
 
+/**
+ * 011 — Transporte de la Cloud API. Meta directo (`graph.facebook.com` con
+ * Bearer) o el proxy de Kapso (mismos paths y payloads, `X-API-Key`). El
+ * dominio no conoce a Kapso: solo `transportFor` mira el `provider`.
+ */
+export type WaProvider = "meta" | "kapso";
+
+export type GraphTransport = {
+  provider: WaProvider;
+  /** Base con versión, sin barra final. */
+  baseUrl: string;
+  headers: Record<string, string>;
+};
+
+export function transportFor(creds: {
+  provider: WaProvider;
+  token: string;
+}): GraphTransport {
+  const env = getEnv();
+  if (creds.provider === "kapso") {
+    return {
+      provider: "kapso",
+      baseUrl: `${env.KAPSO_API_BASE_URL}/meta/whatsapp/${env.KAPSO_GRAPH_VERSION}`,
+      headers: { "X-API-Key": creds.token },
+    };
+  }
+  return metaTransport(creds.token);
+}
+
+/** Meta directo con un token cualquiera (de sistema o app token). */
+export function metaTransport(token: string): GraphTransport {
+  const env = getEnv();
+  return {
+    provider: "meta",
+    baseUrl: `${env.META_GRAPH_BASE_URL}/${env.META_GRAPH_API_VERSION}`,
+    headers: { Authorization: `Bearer ${token}` },
+  };
+}
+
 export async function graphRequest<T>(
   path: string,
   opts: {
     method?: "GET" | "POST" | "DELETE";
-    token: string;
     body?: unknown;
-  }
+  } & ({ token: string } | { transport: GraphTransport })
 ): Promise<T> {
-  const env = getEnv();
-  const url = `${env.META_GRAPH_BASE_URL}/${env.META_GRAPH_API_VERSION}/${path}`;
+  const transport =
+    "transport" in opts ? opts.transport : metaTransport(opts.token);
+  const url = `${transport.baseUrl}/${path}`;
   let res: Response;
   try {
     res = await fetch(url, {
       method: opts.method ?? "GET",
       headers: {
-        Authorization: `Bearer ${opts.token}`,
+        ...transport.headers,
         ...(opts.body !== undefined
           ? { "Content-Type": "application/json" }
           : {}),

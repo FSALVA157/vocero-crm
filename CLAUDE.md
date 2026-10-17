@@ -89,6 +89,7 @@ No corre E2E: eso es tuyo antes de declarar "Hecho".
 | Las personas o el juez del Laboratorio | `src/server/lab/personas.ts` · `src/server/lab/judge.ts` |
 | El canal WhatsApp (Graph API) | `src/lib/meta/` (cliente único) + `src/server/whatsapp/` |
 | El canal Instagram DM (Meta directo o Zernio) | `src/server/instagram/` (`graph.ts` = graph.instagram.com, `zernio.ts`, `send.ts`, `ingest.ts`, `oauth.ts`, `connect.ts`, `maintenance.ts` = refresco de tokens) → webhook `/api/webhooks/ig/[token]` (token de organización O de instancia derivado de `INSTAGRAM_APP_SECRET`) |
+| WhatsApp vía Kapso (transporte alternativo, mismo canal) | `src/lib/meta/client.ts` (`transportFor`: base URL + header por `provider`) + `src/server/whatsapp/kapso.ts` (Platform API, webhook `kind:"meta"`, firma) → webhook `/api/webhooks/kapso/[token]` |
 | Las reglas de cada canal (ventana, plantillas, límite de texto, adjuntos, acuses) | `src/server/channels/capabilities.ts` — el envío las CONSULTA; `src/lib/channels.ts` es el catálogo compartido con la UI |
 | Campos/tablas | `src/lib/db/schema.ts` → `pnpm db:generate` → migración nueva en `drizzle/` |
 | La ingesta/envío de mensajes | `src/server/inbox/` (ingest idempotente, send con guard de sandbox, ventana 24h) |
@@ -141,13 +142,15 @@ funciona igual.
 
 Ver [.specify/memory/constitution.md](.specify/memory/constitution.md).
 
-- **Soberanía (II, enmendada 2.1.0)**: lista CERRADA de dependencias de
+- **Soberanía (II, enmendada 2.2.0)**: lista CERRADA de dependencias de
   runtime — Meta Graph API (WhatsApp; Instagram DM), proveedor LLM
   OpenRouter-compatible opcional, PSP de cobro (Stripe/MercadoPago) OPCIONAL
   solo en modo SaaS tras adaptador dedicado (datos de tarjeta jamás en la
-  instancia; sin PSP el producto está completo), y Zernio OPCIONAL como
-  agregador SOLO para canales de Meta ya listados (Instagram DM), con
-  credencial por organización, tras adaptador, y sin abrir otros canales.
+  instancia; sin PSP el producto está completo), Zernio OPCIONAL como
+  agregador SOLO para canales de Meta ya listados (Instagram DM), y Kapso
+  OPCIONAL como transporte SOLO de WhatsApp (sin sus agentes/workflows) —
+  ambos con credencial por organización, tras adaptador, y sin abrir otros
+  canales.
   PROHIBIDO todo lo no listado (S3/R2, email, Google…). Binarios SIEMPRE en
   volumen persistente del operador. Auth y BD self-hosted.
 - **Seguridad (I)**: secretos cifrados en reposo (AES-256-GCM, `lib/crypto`);

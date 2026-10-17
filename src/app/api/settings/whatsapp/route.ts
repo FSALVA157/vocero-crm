@@ -8,6 +8,7 @@ import {
 import { subscribeAppToWaba, testConnection } from "@/server/whatsapp/connect";
 import { getEnv } from "@/lib/env";
 import { ensureWebhookToken, webhookUrlFor } from "@/server/org/webhook-token";
+import { connectKapso, releaseKapsoWebhook } from "@/server/whatsapp/kapso-connect";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,9 @@ export const GET = withAuth(async (session) => {
       displayPhoneNumber: creds.displayPhoneNumber,
       verifiedName: creds.verifiedName,
       status: creds.status,
+      // 011: transporte. Con Kapso, `tokenLast4` son los de la API key.
+      provider: creds.provider,
+      kapsoWebhook: creds.provider === "kapso" && Boolean(creds.kapsoWebhookId),
       tokenLast4: tokenLast4(creds.token),
       // 007: App ID en claro (es público); del App Secret solo si existe.
       appId: creds.appId,
@@ -29,7 +33,8 @@ export const GET = withAuth(async (session) => {
   });
 }, { permission: "settings.read" });
 
-const putSchema = z.object({
+const metaSchema = z.object({
+  provider: z.literal("meta").optional(),
   wabaId: z.string().trim().min(1),
   phoneNumberId: z.string().trim().min(1),
   token: z.string().trim().min(1),
@@ -42,16 +47,47 @@ const putSchema = z.object({
   appId: z.string().trim().max(64).optional(),
 });
 
+/** 011 — Kapso: la API key y el número elegido de la lista; nada más. */
+const kapsoSchema = z.object({
+  provider: z.literal("kapso"),
+  apiKey: z.string().trim().min(1),
+  phoneNumberId: z.string().trim().min(1),
+  /** Reemplazar un webhook `meta` que ya apuntaba a otra URL. */
+  confirmReplace: z.boolean().optional(),
+});
+
+// Sin `provider` = Meta directo: los clientes anteriores a 011 no lo mandan.
+const putSchema = z.union([kapsoSchema, metaSchema]);
+
 /** Guarda la conexión: re-valida contra Meta, cifra y suscribe (FR-040). */
 export const PUT = withAuth(async (session, req: Request) => {
   const body = await parseBody(req, putSchema);
   if (!body.ok) return body.response;
+
+  if (body.data.provider === "kapso") {
+    const res = await connectKapso({
+      organizationId: session.organizationId,
+      apiKey: body.data.apiKey,
+      phoneNumberId: body.data.phoneNumberId,
+      confirmReplace: body.data.confirmReplace,
+    });
+    if (!res.ok) return apiError(res.status, res.code, res.message);
+    return Response.json({
+      ok: true,
+      provider: "kapso",
+      displayPhoneNumber: res.number.displayPhoneNumber,
+      webhook: res.webhook,
+    });
+  }
 
   const check = await testConnection(body.data.phoneNumberId, body.data.token);
   if (!check.ok) {
     const status = check.code === "meta_unavailable" ? 503 : 422;
     return apiError(status, check.code, check.message);
   }
+
+  // 011: si venía de Kapso, se suelta el webhook que Vocero había creado allí.
+  await releaseKapsoWebhook(session.organizationId);
 
   await saveCredentials({
     organizationId: session.organizationId,

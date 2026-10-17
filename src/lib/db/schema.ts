@@ -496,7 +496,15 @@ export const metaCredentials = pgTable(
     organizationId: text("organization_id")
       .notNull()
       .references(() => organization.id, { onDelete: "cascade" }),
-    wabaId: text("waba_id").notNull(),
+    /**
+     * 011 — Transporte de la Cloud API: Meta directo o el proxy de Kapso. Con
+     * `kapso`, `token_*` guarda la API key de Kapso y `app_*` queda NULL.
+     */
+    provider: text("provider", { enum: ["meta", "kapso"] })
+      .notNull()
+      .default("meta"),
+    /** NULL solo con Kapso, si el número no informa WABA (sin plantillas). */
+    wabaId: text("waba_id"),
     phoneNumberId: text("phone_number_id").notNull(),
     displayPhoneNumber: text("display_phone_number"),
     verifiedName: text("verified_name"),
@@ -516,6 +524,14 @@ export const metaCredentials = pgTable(
      * el webhook a nivel app. No es secreto: va en claro. NULL = agencia.
      */
     appId: text("app_id"),
+    /**
+     * 011 — Webhook `kind:"meta"` creado por Vocero en Kapso y su secreto de
+     * firma (generado aquí, nunca pegado por el usuario).
+     */
+    kapsoWebhookId: text("kapso_webhook_id"),
+    kapsoWebhookSecretCipher: text("kapso_webhook_secret_cipher"),
+    kapsoWebhookSecretIv: text("kapso_webhook_secret_iv"),
+    kapsoWebhookSecretTag: text("kapso_webhook_secret_tag"),
     status: text("status", { enum: ["connected", "reconnect_required"] })
       .notNull()
       .default("connected"),

@@ -3,7 +3,7 @@ import path from "node:path";
 import { eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { getEnv } from "@/lib/env";
-import { graphRequest, MetaApiError } from "@/lib/meta/client";
+import { graphRequest, MetaApiError, transportFor } from "@/lib/meta/client";
 import {
   getCredentialsByOrg,
   type Credentials,
@@ -120,7 +120,26 @@ export async function readMediaFile(
 
 /* ---------- Descarga desde Graph (entrantes y echoes) ---------- */
 
-type GraphMediaMeta = { url?: string; mime_type?: string; file_size?: number };
+type GraphMediaMeta = {
+  url?: string;
+  /** 011 — solo Kapso: URL de descarga propia, válida ~4 min. */
+  download_url?: string;
+  mime_type?: string;
+  /** Kapso la devuelve como string. */
+  file_size?: number | string;
+};
+
+/** `download_url` de Kapso, solo si apunta al host del proxy configurado. */
+function kapsoDownloadUrl(raw: string | undefined): string | null {
+  if (!raw) return null;
+  try {
+    const url = new URL(raw);
+    const expected = new URL(getEnv().KAPSO_API_BASE_URL);
+    return url.host === expected.host ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
 
 export class MediaFetchError extends Error {
   /** true si Meta ya no tiene el archivo (expirado/borrado) — no reintentar. */
@@ -135,29 +154,45 @@ export class MediaFetchError extends Error {
 /**
  * Descarga un media de Graph: GET {mediaId} → url efímera → GET con Bearer.
  * El token JAMÁS sale del servidor.
+ *
+ * 011 — Con Kapso, `url` es el lookaside de Meta (exige un token de Meta que
+ * no tenemos): se usa `download_url`, alojada en Kapso y autenticada por un
+ * token en la query, y se pide SIN headers — la API key nunca viaja a la URL
+ * de descarga, y solo se acepta si el host es el del proxy configurado.
  */
 export async function downloadGraphMedia(
-  token: string,
+  credentials: Pick<Credentials, "provider" | "token" | "phoneNumberId">,
   waMediaId: string,
   maxBytes: number = MEDIA_LIMITS.document.maxBytes
 ): Promise<{ data: Buffer; mimeType: string | null; fileSize: number }> {
+  const kapso = credentials.provider === "kapso";
   let meta: GraphMediaMeta;
   try {
-    meta = await graphRequest<GraphMediaMeta>(waMediaId, { token });
+    meta = await graphRequest<GraphMediaMeta>(
+      kapso
+        ? `${waMediaId}?phone_number_id=${encodeURIComponent(credentials.phoneNumberId)}`
+        : waMediaId,
+      { transport: transportFor(credentials) }
+    );
   } catch (err) {
     const gone = err instanceof MetaApiError && err.status === 404;
     throw new MediaFetchError("Meta no entregó la metadata del adjunto", gone);
   }
-  if (!meta.url) throw new MediaFetchError("Meta no entregó URL del adjunto");
-  if (meta.file_size && meta.file_size > maxBytes) {
+  const fileUrl = kapso ? kapsoDownloadUrl(meta.download_url) : meta.url;
+  if (!fileUrl) throw new MediaFetchError("Meta no entregó URL del adjunto");
+  const declaredSize = Number(meta.file_size ?? 0);
+  if (declaredSize && declaredSize > maxBytes) {
     throw new MediaFetchError("El adjunto excede el límite de tamaño", true);
   }
 
   let res: Response;
   try {
-    res = await fetch(meta.url, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    res = await fetch(
+      fileUrl,
+      kapso
+        ? {}
+        : { headers: { Authorization: `Bearer ${credentials.token}` } }
+    );
   } catch {
     throw new MediaFetchError("No se pudo descargar el adjunto");
   }
@@ -204,7 +239,7 @@ export async function ensureAssetAvailable(
 
   try {
     const { data, mimeType, fileSize } = await downloadGraphMedia(
-      creds.token,
+      creds,
       asset.waMediaId
     );
     const storagePath = await saveMediaFile(organizationId, assetId, data);
@@ -243,8 +278,8 @@ export async function uploadGraphMedia(
   credentials: Credentials,
   file: { data: Buffer | Uint8Array; mimeType: string; fileName?: string }
 ): Promise<string> {
-  const env = getEnv();
-  const url = `${env.META_GRAPH_BASE_URL}/${env.META_GRAPH_API_VERSION}/${credentials.phoneNumberId}/media`;
+  const transport = transportFor(credentials);
+  const url = `${transport.baseUrl}/${credentials.phoneNumberId}/media`;
   const form = new FormData();
   form.set("messaging_product", "whatsapp");
   form.set("type", file.mimeType);
@@ -259,7 +294,7 @@ export async function uploadGraphMedia(
   try {
     res = await fetch(url, {
       method: "POST",
-      headers: { Authorization: `Bearer ${credentials.token}` },
+      headers: transport.headers,
       body: form,
     });
   } catch (cause) {

@@ -264,6 +264,37 @@ del cliente se conecta con el **override de callback por WABA**:
 > Graph** (botón "Sincronizar" en Configuración → Plantillas), así el modo
 > agencia ve las aprobaciones igual.
 
+## Conexión de WhatsApp vía Kapso
+
+Desde 3.7.0, además de Meta directo, un número de WhatsApp se puede conectar
+por **Kapso** (Configuración → WhatsApp → «Kapso»). Sirve para números que
+viven en Kapso (incluidos los números gestionados por Kapso, que no tienen
+token de Meta accesible) y para quien no quiere crear una app de Meta:
+
+1. Pega la **API key** de tu proyecto de Kapso (Kapso → Integrations → API
+   keys) y pulsa «Buscar números».
+2. Elige el número (si hay uno solo, ya viene elegido) y pulsa «Conectar».
+
+Vocero guarda la clave cifrada y registra él mismo en Kapso el webhook que le
+reenvía los mensajes (`kind: "meta"`, con un secreto de firma que genera y
+nunca muestra). No hay URLs, IDs ni secretos que copiar. Si el número ya
+mandaba sus mensajes a otro destino (por ejemplo un flujo de n8n), la app
+muestra ese destino y pide confirmación antes de reemplazarlo: Kapso admite
+uno solo por número.
+
+Ten en cuenta:
+
+- Los mensajes **pasan por Kapso** (la app lo avisa antes de conectar).
+- Si en Kapso tienes un agente, un workflow o un inbox que responde solo,
+  **desactívalo**; si no, tus clientes reciben dos respuestas.
+- Los números gratis de Kapso se liberan tras 30 días sin mensajes.
+- Todo lo demás (bandeja, agente, plantillas, adjuntos, acuses, `/api/bot/*`)
+  funciona igual que con Meta directo. Pasar de un transporte al otro conserva
+  el historial.
+
+Para probar sin cuenta real: `KAPSO_API_BASE_URL` apunta al `kapso-mock`
+(ver `.env.example`) y `pnpm test:e2e:kapso` conduce el flujo completo.
+
 ## Conexión de Instagram
 
 Desde 3.6.0 los mensajes directos de Instagram entran a la misma bandeja y
@@ -405,6 +436,18 @@ SemVer sobre lo que le importa a quien opera una instancia:
 | **Parche** (`1.1.1`) | Arreglos y ajustes. Actualizar es redesplegar. |
 
 La versión vive en `package.json` y se sube en el PR que publica el cambio.
+
+### 3.7.0 — WhatsApp vía Kapso
+
+- Nueva vía de conexión de WhatsApp: **Kapso** (Configuración → WhatsApp).
+  Solo la API key y elegir el número; Vocero registra el webhook solo.
+- Kapso es un transporte, no un canal: mismo contacto, misma conversación,
+  mismas reglas. Cambiar entre Meta directo y Kapso conserva el historial.
+- Constitución 2.2.0: Kapso entra a la lista cerrada como dependencia
+  opcional, con las mismas salvaguardas que Zernio.
+- Actualizar es redesplegar: la migración `0013` agrega columnas y corre sola
+  al arrancar. Variables nuevas opcionales: `KAPSO_API_BASE_URL`,
+  `KAPSO_GRAPH_VERSION` (solo para apuntar al mock).
 
 ### 3.6.0 — Canal de Instagram DM
 

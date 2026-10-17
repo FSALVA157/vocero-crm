@@ -1,6 +1,40 @@
 <!--
 SYNC IMPACT REPORT
 ==================
+Versión: 2.1.0 → 2.2.0
+
+Cambios:
+  - Principio II "Soberanía" → EXPANDIDO: la lista cerrada de dependencias de
+    runtime incorpora un quinto elemento, **Kapso**, como agregador OPCIONAL
+    para conectar números de WhatsApp (canal ya listado), bajo las mismas
+    cinco salvaguardas que Zernio: (a) opcional — sin Kapso WhatsApp funciona
+    completo por Meta directo, la vía principal; (b) tras adaptador dedicado
+    (transporte de WhatsApp intercambiable); (c) credencial de la
+    organización; (d) solo WhatsApp — Kapso no abre canales nuevos y sus
+    funciones propias (agente, workflows, broadcasts, inbox, llamadas) no se
+    usan; (e) tránsito por un tercero declarado en la UI antes de guardar.
+  - Restricciones de Plataforma → "Aislamiento de integraciones" nombra el
+    transporte de Kapso.
+  - Principios I, III, IV, V, VI, VII, VIII, IX y Governance: íntegros.
+
+Bump: MINOR (2.1.0 → 2.2.0) — una dependencia nueva en la lista cerrada sin
+redefinir ni eliminar nada: una instancia sin Kapso cumple igual que antes.
+
+Motivación:
+  Feature 011. Los números gestionados por Kapso (alta instantánea) no tienen
+  token de Meta accesible, y conectar por Meta directo exige app + usuario del
+  sistema + token, la parte más difícil del alta para un usuario no técnico.
+  Kapso expone un proxy con los mismos contratos de la Cloud API y reenvía el
+  webhook crudo de Meta, así que entra como transporte, no como canal. El
+  responsable del proyecto aprobó la enmienda el 2026-10-17.
+
+Plantillas dependientes: revisadas — sin cambios necesarios. CLAUDE.md →
+actualizado en el mismo PR (resumen de Soberanía y mapa del código).
+-->
+
+<!--
+SYNC IMPACT REPORT
+==================
 Versión: 2.0.0 → 2.1.0
 
 Cambios:
@@ -261,6 +295,25 @@ dependencias externas en runtime es CERRADA — ampliarla exige enmienda:
        interfaz lo dice de forma explícita antes de que la organización
        guarde la conexión. Sus webhooks se validan por firma y se procesan de
        forma idempotente (Principio IV).
+  5. **Kapso**, OPCIONAL, como agregador para conectar números de WhatsApp
+     (canal ya listado), bajo las mismas cinco salvaguardas que Zernio:
+     - **Opcional y secundario**: Meta directo es la vía principal; sin
+       Kapso, WhatsApp funciona completo. Ninguna capacidad existe solo por
+       Kapso.
+     - Se accede tras un **adaptador dedicado** (transporte de WhatsApp
+       intercambiable: Meta directo o el proxy de Kapso); el dominio no
+       conoce a Kapso.
+     - **La credencial es de la organización** (Principio III): la API key se
+       guarda cifrada junto a ella; la instancia no tiene una clave de Kapso.
+     - **No amplía la lista de canales ni de funciones**: solo transporta
+       WhatsApp. El agente, los workflows, los broadcasts, el inbox y las
+       llamadas de Kapso no se usan; cualquier otro uso exige su propia
+       enmienda.
+     - **Tránsito declarado**: los mensajes pasan por un tercero, y la
+       interfaz lo dice de forma explícita antes de que la organización
+       guarde la conexión. Sus webhooks se validan por firma y se procesan de
+       forma idempotente (Principio IV). Los medios se descargan al volumen
+       del operador; nunca se sirven desde Kapso.
 - **PROHIBIDO todo lo no listado**: almacenamiento de objetos externo (S3/R2),
   servicios de email, servicios de Google y cualquier otro. Cada necesidad
   nueva se resuelve con una enmienda explícita, nunca con un "ya que estamos".
@@ -469,7 +522,7 @@ Estas restricciones derivan de los Principios I y II y son verificables en revis
   de tenant; cualquier acceso que pueda omitirlo requiere justificación explícita.
 - **Aislamiento de integraciones**: las dependencias de APIs externas se acceden a
   través de adaptadores dedicados (cliente Graph API propio, adaptador LLM
-  OpenRouter-compatible, adaptador de cobro, transporte de Zernio), no
+  OpenRouter-compatible, adaptador de cobro, transportes de Zernio y de Kapso), no
   dispersas por el dominio.
 - **Instancia pública endurecida**: las rutas de mock/desarrollo devuelven 404
   incondicional en producción; el registro público exige el código de invitación
@@ -520,4 +573,4 @@ práctica, convención o preferencia; ante un conflicto, gana la constitución.
 - **Propagación**: al enmendar la constitución se revisan y, si procede, se actualizan
   las plantillas dependientes (plan, spec, tasks).
 
-**Version**: 2.1.0 | **Ratified**: 2026-07-09 | **Last Amended**: 2026-09-01
+**Version**: 2.2.0 | **Ratified**: 2026-07-09 | **Last Amended**: 2026-10-17
